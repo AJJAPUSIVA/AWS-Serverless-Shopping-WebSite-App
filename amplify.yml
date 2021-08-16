@@ -1,0 +1,28 @@
+version: 1
+env:
+  variables:
+      ORIGIN: https://${AWS_BRANCH//\//-}.${AWS_APP_ID}.amplifyapp.com
+backend:
+  phases:
+    preBuild:
+      commands:
+        - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        - unzip awscliv2.zip
+        - ./aws/install
+        - pip3 install --upgrade aws-sam-cli
+    build:
+      commands:
+        - make backend
+frontend:
+  phases:
+    # IMPORTANT - Please verify your build commands
+    build:
+      commands:
+        - make frontend-build
+  artifacts:
+    # IMPORTANT - Please verify your build output directory
+    baseDirectory: /frontend/dist
+    files:
+      - '**/*'
+  cache:
+    paths: []
