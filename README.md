@@ -1,6 +1,6 @@
 # AWS Serverless Shopping Website App
 
-A full-stack serverless e-commerce application with an AI-powered shopping assistant, built on AWS using SAM, Vue.js, and Amazon Bedrock.
+Full-stack serverless e-commerce app with AI shopping assistant — built with AWS SAM, vanilla JS, and Amazon Bedrock.
 
 ---
 
