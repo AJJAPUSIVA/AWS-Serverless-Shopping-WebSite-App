@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - agent/**
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend and security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install CI dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci.txt
+
+      - name: Verify patched sqlparse
+        run: |
+          python -c "import sqlparse; assert sqlparse.__version__ == '0.6.0', sqlparse.__version__"
+          pip check
+
+      - name: Run agent tests
+        run: python -m unittest discover -s backend/agent-service/tests -v
+
+      - name: Compile Python
+        run: |
+          python -m compileall \
+            backend/agent-service \
+            backend/shopping-cart-service \
+            backend/product-mock-service \
+            backend/layers
+
+      - name: Lint CloudFormation
+        run: |
+          cfn-lint \
+            backend/agent-service.yaml \
+            backend/shoppingcart-service.yaml \
+            backend/product-mock.yaml \
+            backend/auth.yaml \
+            amplify-ci/amplify-template.yaml
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --no-package-lock
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
