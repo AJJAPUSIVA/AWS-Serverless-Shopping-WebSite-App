@@ -1,207 +1,191 @@
-# Serverless Agentic Shopping Assistant
+# AWS Serverless Shopping Website App
 
-This application is a sample application demonstrating a shopping cart microservice and an LLM-powered personal
-shopping agent using serverless technologies on AWS. The shopping assistant uses Amazon Bedrock Agents to search the
-authoritative catalog, inspect a signed-in customer's cart, and perform confirmed cart actions without inventing
-product or pricing data.
+A full-stack serverless e-commerce application with an AI-powered shopping assistant, built on AWS using SAM, Vue.js, and Amazon Bedrock.
 
-The core shopping cart demonstrates how you could implement a shopping cart microservice using
-serverless technologies on AWS. The backend is built as a REST API interface, making use of [Amazon API Gateway](https://aws.amazon.com/api-gateway/), [AWS Lambda](https://aws.amazon.com/lambda/), [Amazon Cognito](https://aws.amazon.com/cognito/), and [Amazon DynamoDB](https://aws.amazon.com/dynamodb/). The frontend is a Vue.js application using the [AWS Amplify](https://aws-amplify.github.io/) SDK for authentication and communication with the API.
+---
 
-To assist in demonstrating the functionality, a bare bones mock "products" service has also been included. Since the 
-authentication parts are likely to be shared between components, there is a separate template for it. The front-end 
-doesn't make any real payment integration at this time.
+## Overview
 
-## Architecture & Design
+This project demonstrates a production-style shopping cart microservice with an LLM-powered personal shopping agent. Users can browse products, manage their cart, and interact with an AI assistant that can search the catalog, inspect the cart, and perform confirmed cart actions.
 
-![Architecture Diagram](./images/architecture.png)
+---
 
-### Agentic Shopping Assistant
+## Architecture
 
-Signed-in users can open the assistant from the floating message button and ask questions such as:
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | Vue.js 2, Vuetify, AWS Amplify SDK |
+| **API** | Amazon API Gateway (REST) |
+| **Compute** | AWS Lambda (Python 3.13) |
+| **Database** | Amazon DynamoDB |
+| **Auth** | Amazon Cognito |
+| **AI Assistant** | Amazon Bedrock Agent (Nova Lite v1) |
+| **CI/CD** | AWS Amplify Console / GitHub Actions |
+| **IaC** | AWS SAM (CloudFormation) |
 
-- “Find fruit under $5.”
-- “What is in my cart?”
-- “Add two of the cheapest vegetables.”
-- “Preview checkout and tell me the total.”
+### Backend Services
 
-The assistant is implemented as a separate `agent-service` SAM stack:
+| Stack | Purpose |
+|-------|---------|
+| `auth.yaml` | Cognito User Pool & App Client |
+| `product-mock.yaml` | Mock product catalog API |
+| `shoppingcart-service.yaml` | Cart CRUD, migration, checkout, DynamoDB Streams aggregation |
+| `agent-service.yaml` | Bedrock Agent for AI shopping assistant |
 
-1. The Vue client sends an authenticated request to `POST /assistant`.
-2. A chat Lambda binds the Bedrock session UUID to the Cognito user in an encrypted DynamoDB table.
-3. Amazon Bedrock Agent chooses from six purpose-built shopping functions.
-4. The action Lambda reads the user identity from the server-side session table, never from model-generated input.
-5. Product and cart facts are retrieved from the existing services. Cart writes and checkout require user confirmation.
+---
 
-The model never receives a Cognito token, and tool results are treated as data rather than instructions. The assistant
-currently requires sign-in so that agent actions cannot cross customer carts.
+## Prerequisites
 
-## Design Notes
+- **Python** >= 3.13.0
+- **AWS SAM CLI** >= 1.165.0
+- **AWS CLI** (configured with credentials)
+- **Node.js & Yarn** (for frontend)
+- **boto3** (Python)
+- **Amazon Bedrock** model enabled in your account/region (default: `amazon.nova-lite-v1:0`)
 
-Before building the application, I set some requirements on how the cart should behave:
+---
 
-- Users should be able to add items to the cart without logging in (an "anonymous cart"), and that cart should persist 
-across browser restarts etc.
-- When logging in, if there were products in an anonymous cart, they should be added to the user's cart from any 
-previous logged in sessions.
-- When logging out, the anonymous cart should not have products in it any longer.
-- Items in an anonymous cart should be removed after a period of time, and items in a logged in cart should persist 
-for a longer period.
-- Admin users to be able to get an aggregated view of the total number of each product in users' carts at any time.
+## Quick Start
 
-### Cart Migration
+### 1. Clone the Repository
 
-When an item is added to the cart, an item is written in DynamoDB with an identifier which matches a randomly generated 
-(uuid) cookie which is set in the browser. This allows a user to add items to cart and come back to the page later 
-without losing the items they have added. When the user logs in, these items will be removed, and replaced with items 
-with a user id as the pk. If the user already had that product in their cart from a previous logged in session, the 
-quantities would be summed. Because we don't need the deletion of old items to happen immediately as part of a 
-synchronous workflow, we put messages onto an SQS queue, which triggers a worker function to delete the messages.  
-
-To expire items from users' shopping carts, DynamoDB's native functionality is used where a TTL is written along with 
-the item, after which the item should be removed. In this implementation, the TTL defaults to 1 day for anonymous 
-carts, and 7 days for logged in carts.  
-
-### Aggregated View of Products in Carts
-
-It would be possible to scan our entire DynamoDB table and sum up the quantities of all the products, but this will be 
-expensive past a certain scale. Instead, we can calculate the total as a running process, and keep track of the total 
-amount.  
-
-When an item is added, deleted or updated in DynamoDB, an event is put onto DynamoDB Streams, which in turn triggers a 
-Lambda function. This function calculates the change in total quantity for each product in users' carts, and writes the 
-quantity back to DynamoDB. The Lambda function is configured so that it will run after either 60 seconds pass, or 100 
-new events are on the stream. This would enable an admin user to get real time data about the popular products, which 
-could in turn help anticipate inventory. In this implementation, the API is exposed without authentication to 
-demonstrate the functionality.  
-
-
-## Api Design
-
-### Shopping Cart Service
-
-GET  
-`/cart`  
-Retrieves the shopping cart for a user who is either anonymous or logged in.  
-
-POST  
-`/cart`  
-Accepts a product id and quantity as json. Adds specified quantity of an item to cart.  
-
-`/cart/migrate`  
-Called after logging in - migrates items in an anonymous user's cart to belong to their logged in user. If you already 
-have a cart on your logged in user, your "anonymous cart" will be merged with it when you log in.
-
-`/cart/checkout`  
-Currently just empties cart.
-
-PUT  
-`/cart/{product-id}`  
-Accepts a product id and quantity as json. Updates quantity of given item to provided quantity.  
-
-GET  
-`/cart/{product-id}/total`  
-Returns the total amount of a given product across all carts. This API is not used by the frontend but can be manually 
-called to test.  
-
-### Product Mock Service
-
-GET  
-`/product`  
-Returns details for all products.  
-
-`/product/{product_id}`  
-Returns details for a single product.  
-
-## Running the Example
-
-### Requirements
-
-python >= 3.13.0
-boto3
-SAM CLI, >= version 1.165.0
-AWS CLI  
-yarn  
-
-You must also enable the configured foundation model in Amazon Bedrock for your AWS account and region. The
-`agent-service` template defaults to `amazon.nova-lite-v1:0`; override `FoundationModelId` when deploying if that model
-is not available in your region.
-
-### Setup steps
-
-Fork the github repo, then clone your fork locally: 
-`git clone https://github.com/<your-github-username>/aws-serverless-shopping-cart && cd aws-serverless-shopping-cart`
-
-If you wish to use a named profile for your AWS credentials, you can set the environment variable `AWS_PROFILE` before 
-running the below commands. For a profile named "development": `export AWS_PROFILE=development`.  
-
-You now have 2 options - you can deploy the backend and run the frontend locally, or you can deploy the whole project 
-using the AWS Amplify console.
-
-## Option 1 - Deploy backend and run frontend locally
-### Deploy the Backend
-
-An S3 bucket will be automatically created for you which will be used for deploying source code to AWS. If you wish to 
-use an existing bucket instead, you can manually set the `S3_BUCKET` environment variable to the name of your bucket.  
-
-Build and deploy the resources:  
-``` bash
-make backend  # Creates the deployment bucket, then deploys authentication, product, cart, and Bedrock agent stacks.
+```bash
+git clone https://github.com/<your-username>/aws-serverless-shopping-cart.git
+cd aws-serverless-shopping-cart
 ```
 
-### Run the Frontend Locally
+### 2. (Optional) Set AWS Profile
 
-Start the frontend locally:  
-``` bash
-make frontend-serve  # Retrieves backend config from ssm parameter store to a .env file, then starts service.  
+```bash
+export AWS_PROFILE=<your-profile-name>
 ```
 
-Once the service is running, you can access the frontend on http://localhost:8080/ and start adding items to your cart. 
-You can create an account by clicking on "Sign In" then "Create Account". Be sure to use a valid email address as 
-you'll need to retrieve the verification code.
+### 3. Deploy the Backend
 
-**Note:** CORS headers on the backend service default to allowing http://localhost:8080/. You will see CORS errors if 
-you access the frontend using the ip (http://127.0.0.1:8080/), or using a port other than 8080.  
+```bash
+make backend
+```
 
-### Clean Up
-Delete the CloudFormation stacks created by this project:
-``` bash
+This will:
+- Create an S3 deployment bucket (auto-named with your account ID and region)
+- Deploy the Auth, Product, Shopping Cart, and Agent stacks in order
+
+### 4. Run the Frontend Locally
+
+```bash
+make frontend-serve
+```
+
+Access the app at **http://localhost:8080/**
+
+> **Note:** CORS is configured for `http://localhost:8080`. Using `127.0.0.1` or a different port will cause CORS errors.
+
+### 5. Create an Account
+
+Click **Sign In** → **Create Account**. Use a valid email to receive the verification code.
+
+---
+
+## Alternative: Full Deployment via AWS Amplify Console
+
+```bash
+export GITHUB_REPO=https://github.com/<your-username>/aws-serverless-shopping-cart
+export GITHUB_BRANCH=master
+export GITHUB_OAUTH_TOKEN=<your-github-personal-access-token>
+
+make amplify-deploy
+```
+
+Then go to the [AWS Amplify Console](https://console.aws.amazon.com/amplify/home), select **CartApp**, and click **Run Build**.
+
+---
+
+## API Endpoints
+
+### Shopping Cart (`/cart`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/cart` | Get cart for current user (anonymous or authenticated) |
+| POST | `/cart` | Add item to cart (body: `{productId, quantity}`) |
+| POST | `/cart/migrate` | Merge anonymous cart into authenticated user's cart |
+| POST | `/cart/checkout` | Checkout (empties cart) |
+| PUT | `/cart/{product-id}` | Update item quantity |
+| GET | `/cart/{product-id}/total` | Get aggregated total of a product across all carts |
+
+### Products (`/product`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/product` | List all products |
+| GET | `/product/{product_id}` | Get single product details |
+
+### Assistant (`/assistant`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/assistant` | Send a message to the AI shopping assistant (requires auth) |
+
+---
+
+## AI Shopping Assistant
+
+Signed-in users can chat with the assistant to:
+
+- Search the product catalog ("Find fruit under $5")
+- Inspect their cart ("What's in my cart?")
+- Add/remove items ("Add two of the cheapest vegetables")
+- Preview checkout ("Preview checkout and tell me the total")
+
+The assistant uses Amazon Bedrock Agents with six purpose-built action tools. Cart-modifying actions require user confirmation.
+
+---
+
+## Key Design Decisions
+
+- **Anonymous carts** persist via a UUID cookie (TTL: 1 day)
+- **Authenticated carts** have a 7-day TTL
+- **Cart migration** merges anonymous → authenticated on login (quantities summed)
+- **DynamoDB Streams** power real-time aggregation of product quantities across all carts
+- **Security**: The Bedrock Agent never sees Cognito tokens; user identity is resolved server-side
+
+---
+
+## Project Structure
+
+```
+AWS-Serverless-Shopping-WebSite-App-https/
+├── backend/
+│   ├── auth.yaml                    # Cognito stack
+│   ├── product-mock.yaml            # Product catalog stack
+│   ├── shoppingcart-service.yaml    # Cart service stack
+│   ├── agent-service.yaml           # Bedrock agent stack
+│   ├── shopping-cart-service/       # Cart Lambda handlers (Python)
+│   ├── product-mock-service/        # Product Lambda handlers (Python)
+│   ├── agent-service/               # Agent Lambda handlers (Python)
+│   └── layers/                      # Shared Lambda layer
+├── frontend/
+│   ├── src/                         # Vue.js application source
+│   ├── public/                      # Static assets
+│   └── package.json
+├── amplify-ci/                      # Amplify Console CloudFormation template
+├── amplify.yml                      # Amplify build spec
+├── Makefile                         # Top-level build orchestration
+└── README.md
+```
+
+---
+
+## Cleanup
+
+```bash
 make backend-delete
 ```
 
-## Option 2 - Automatically deploy backend and frontend using Amplify Console
+If deployed via Amplify, also delete the **CartApp** stack from CloudFormation.
 
-
-[Create a new personal access token](https://help.github.com/en/articles/creating-a-personal-access-token-for-the-command-line) 
-on GitHub. 
-Amplify will need this to access your repository. The token will need the “repo” OAuth scope.
-
-Set environment variables:
-```bash
-export GITHUB_REPO=https://github.com/<your-github-username>/aws-serverless-shopping-cart
-export GITHUB_BRANCH=master  # Or whichever branch you wish to track
-export GITHUB_OAUTH_TOKEN=<github personal access token>
-```
-
-Create the Amplify console application, which will provide basic continuous deployment for your Github repository: 
-``` bash
-make amplify-deploy  # Creates amplify console application
-```
-
-Go to the [AWS Amplify console](https://console.aws.amazon.com/amplify/home), then click on "CartApp" and "run build". 
-This will deploy both the frontend and backend:
-![Amplify Console](./images/AmplifyConsoleScreen.png)
-
-### Clean Up
-Delete the CloudFormation stacks created by this project. One is named "CartApp", and then there are 3 with names 
-starting with "aws-serverless-shopping-cart-".
+---
 
 ## License
 
-This library is licensed under the MIT-0 License. See the [LICENSE](LICENSE) file.  
-
-## Dependency security
-
-CI dependencies are pinned in `requirements-ci.txt`. In particular, `sqlparse==0.6.0` is enforced because earlier
-versions are affected by the August 2026 denial-of-service advisories. Dependabot monitors the CI requirements, Lambda
-layers, product service, and frontend dependency manifests weekly.
+MIT-0 License. See [LICENSE](./AWS-Serverless-Shopping-WebSite-App-https/LICENSE).
