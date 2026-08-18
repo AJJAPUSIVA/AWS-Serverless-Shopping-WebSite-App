@@ -42,7 +42,6 @@ Resources:
                 Action:
                     - "s3:PutObject"
                     - "s3:GetObject"
-                    - "s3:CreateMultipartUpload"
                     - "s3:ListBucket"
                     - "s3:CreateBucket"
                 Resource:
@@ -126,6 +125,29 @@ Resources:
                       - "sts:GetCallerIdentity"
                   Resource:
                       - "*"
+              -
+                  Effect: "Allow"
+                  Action:
+                      - "bedrock:CreateAgent"
+                      - "bedrock:UpdateAgent"
+                      - "bedrock:GetAgent"
+                      - "bedrock:DeleteAgent"
+                      - "bedrock:PrepareAgent"
+                      - "bedrock:CreateAgentActionGroup"
+                      - "bedrock:UpdateAgentActionGroup"
+                      - "bedrock:GetAgentActionGroup"
+                      - "bedrock:DeleteAgentActionGroup"
+                      - "bedrock:ListAgentActionGroups"
+                      - "bedrock:CreateAgentAlias"
+                      - "bedrock:UpdateAgentAlias"
+                      - "bedrock:GetAgentAlias"
+                      - "bedrock:DeleteAgentAlias"
+                      - "bedrock:ListAgentAliases"
+                      - "bedrock:TagResource"
+                      - "bedrock:UntagResource"
+                      - "bedrock:ListTagsForResource"
+                  Resource:
+                      - "*"
 
   AmplifyApp:
     Type: AWS::Amplify::App
@@ -140,8 +162,6 @@ Resources:
           Target: /
           Status: 200
       EnvironmentVariables:
-        - Name: _CUSTOM_IMAGE
-          Value: nikolaik/python-nodejs:python3.8-nodejs12
         - Name: S3_BUCKET
           Value: !Ref SrcS3Bucket
       Tags:

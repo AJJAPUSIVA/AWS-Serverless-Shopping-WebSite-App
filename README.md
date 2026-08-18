@@ -1,6 +1,11 @@
-# Serverless Shopping Cart Microservice
+# Serverless Agentic Shopping Assistant
 
-This application is a sample application to demonstrate how you could implement a shopping cart microservice using 
+This application is a sample application demonstrating a shopping cart microservice and an LLM-powered personal
+shopping agent using serverless technologies on AWS. The shopping assistant uses Amazon Bedrock Agents to search the
+authoritative catalog, inspect a signed-in customer's cart, and perform confirmed cart actions without inventing
+product or pricing data.
+
+The core shopping cart demonstrates how you could implement a shopping cart microservice using
 serverless technologies on AWS. The backend is built as a REST API interface, making use of [Amazon API Gateway](https://aws.amazon.com/api-gateway/), [AWS Lambda](https://aws.amazon.com/lambda/), [Amazon Cognito](https://aws.amazon.com/cognito/), and [Amazon DynamoDB](https://aws.amazon.com/dynamodb/). The frontend is a Vue.js application using the [AWS Amplify](https://aws-amplify.github.io/) SDK for authentication and communication with the API.
 
 To assist in demonstrating the functionality, a bare bones mock "products" service has also been included. Since the 
@@ -10,6 +15,26 @@ doesn't make any real payment integration at this time.
 ## Architecture & Design
 
 ![Architecture Diagram](./images/architecture.png)
+
+### Agentic Shopping Assistant
+
+Signed-in users can open the assistant from the floating message button and ask questions such as:
+
+- “Find fruit under $5.”
+- “What is in my cart?”
+- “Add two of the cheapest vegetables.”
+- “Preview checkout and tell me the total.”
+
+The assistant is implemented as a separate `agent-service` SAM stack:
+
+1. The Vue client sends an authenticated request to `POST /assistant`.
+2. A chat Lambda binds the Bedrock session UUID to the Cognito user in an encrypted DynamoDB table.
+3. Amazon Bedrock Agent chooses from six purpose-built shopping functions.
+4. The action Lambda reads the user identity from the server-side session table, never from model-generated input.
+5. Product and cart facts are retrieved from the existing services. Cart writes and checkout require user confirmation.
+
+The model never receives a Cognito token, and tool results are treated as data rather than instructions. The assistant
+currently requires sign-in so that agent actions cannot cross customer carts.
 
 ## Design Notes
 
@@ -92,11 +117,15 @@ Returns details for a single product.
 
 ### Requirements
 
-python >= 3.8.0
+python >= 3.13.0
 boto3
-SAM CLI, >= version 0.50.0  
+SAM CLI, >= version 1.165.0
 AWS CLI  
 yarn  
+
+You must also enable the configured foundation model in Amazon Bedrock for your AWS account and region. The
+`agent-service` template defaults to `amazon.nova-lite-v1:0`; override `FoundationModelId` when deploying if that model
+is not available in your region.
 
 ### Setup steps
 
@@ -117,8 +146,7 @@ use an existing bucket instead, you can manually set the `S3_BUCKET` environment
 
 Build and deploy the resources:  
 ``` bash
-make backend  # Creates S3 bucket if not existing already, then deploys CloudFormation stacks for authentication, a 
-product mock service and the shopping cart service.  
+make backend  # Creates the deployment bucket, then deploys authentication, product, cart, and Bedrock agent stacks.
 ```
 
 ### Run the Frontend Locally
@@ -171,3 +199,9 @@ starting with "aws-serverless-shopping-cart-".
 ## License
 
 This library is licensed under the MIT-0 License. See the [LICENSE](LICENSE) file.  
+
+## Dependency security
+
+CI dependencies are pinned in `requirements-ci.txt`. In particular, `sqlparse==0.6.0` is enforced because earlier
+versions are affected by the August 2026 denial-of-service advisories. Dependabot monitors the CI requirements, Lambda
+layers, product service, and frontend dependency manifests weekly.

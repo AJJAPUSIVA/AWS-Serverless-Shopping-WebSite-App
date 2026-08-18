@@ -14,7 +14,7 @@ const query = {
 }
 
 const requiredParams = ["CART_API_URL", "PRODUCTS_API_URL", "USER_POOL_ID",
-    "USER_POOL_CLIENT_ID"
+    "USER_POOL_CLIENT_ID", "ASSISTANT_API_URL"
 ]
 
 var params = ssm.getParametersByPath(query).promise()

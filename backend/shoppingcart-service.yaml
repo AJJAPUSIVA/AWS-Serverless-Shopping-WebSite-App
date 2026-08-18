@@ -24,7 +24,7 @@ Globals:
     MemorySize: 512
     Tracing: Active
     AutoPublishAlias: live
-    Runtime: python3.8
+    Runtime: python3.13
     Environment:
       Variables:
         TABLE_NAME: !Ref DynamoDBShoppingCartTable
@@ -48,9 +48,9 @@ Resources:
     Properties:
       ContentUri: ./layers/
       CompatibleRuntimes:
-        - python3.8
+        - python3.13
     Metadata:
-      BuildMethod: python3.8
+      BuildMethod: python3.13
 
   CartApi:
     Type: AWS::Serverless::Api
@@ -425,6 +425,13 @@ Resources:
       Type: String
       Name: /serverless-shopping-cart-demo/shopping-cart/cart-api-url
       Value: !Sub "https://${CartApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+
+  CartTableName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: String
+      Name: /serverless-shopping-cart-demo/shopping-cart/cart-table-name
+      Value: !Ref DynamoDBShoppingCartTable
 
 Outputs:
   CartApi:

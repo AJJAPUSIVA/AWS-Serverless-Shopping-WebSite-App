@@ -85,3 +85,15 @@ export async function cartCheckout() {
         })
     )
 }
+
+export async function askAssistant(message, sessionId = null) {
+    return getHeaders(true).then(
+        headers => API.post("AssistantAPI", "/assistant", {
+            body: {
+                message: message,
+                sessionId: sessionId
+            },
+            headers: headers
+        })
+    )
+}

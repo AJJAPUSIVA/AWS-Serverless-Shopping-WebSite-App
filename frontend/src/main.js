@@ -18,6 +18,7 @@ import CartDrawer from "@/components/CartDrawer.vue";
 import LoadingOverlay from "@/components/LoadingOverlay.vue";
 import Product from "@/components/Product.vue";
 import CartQuantityEditor from "@/components/CartQuantityEditor.vue"
+import AssistantChat from "@/components/AssistantChat.vue"
 
 Vue.config.productionTip = false
 
@@ -31,6 +32,7 @@ Vue.component('cart-drawer', CartDrawer)
 Vue.component('loading-overlay', LoadingOverlay)
 Vue.component('product', Product)
 Vue.component('cart-quantity-editor', CartQuantityEditor)
+Vue.component('assistant-chat', AssistantChat)
 
 
 new Vue({

@@ -12,6 +12,10 @@ const awsmobile = {
       {
         name: "ProductAPI",
         endpoint: process.env.VUE_APP_PRODUCTS_API_URL,
+      },
+      {
+        name: "AssistantAPI",
+        endpoint: process.env.VUE_APP_ASSISTANT_API_URL,
       }
     ]
   }
