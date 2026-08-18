@@ -35,6 +35,7 @@
       >
         <cart-drawer />
       </v-navigation-drawer>
+      <assistant-chat />
     </v-content>
   </v-app>
 </template>

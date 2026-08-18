@@ -5,7 +5,6 @@ import Home from '@/views/Home.vue'
 import Payment from '@/views/Payment.vue'
 import Auth from '@/views/Auth.vue'
 import {
-  components,
   AmplifyEventBus
 } from 'aws-amplify-vue';
 
