@@ -126,8 +126,9 @@ jobs:
         run: |
           node -e "
             const fs = require('fs');
+            const vm = require('vm');
             const content = fs.readFileSync('js/config.js', 'utf8');
-            eval(content);
+            vm.runInThisContext(content);
             const required = ['REGION', 'USER_POOL_ID', 'USER_POOL_CLIENT_ID', 'CART_API_URL', 'PRODUCTS_API_URL', 'ASSISTANT_API_URL'];
             for (const key of required) {
               if (!CONFIG[key]) { console.error('Missing CONFIG.' + key); process.exit(1); }
