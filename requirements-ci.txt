@@ -1,5 +1,4 @@
 # Reproducible CI tooling. sqlparse 0.6.0 fixes the August 2026 ReDoS and CPU DoS advisories.
 aws-sam-cli==1.165.0
-cfn-lint==1.31.1
 sqlparse==0.6.0
 pip-audit==2.7.3
