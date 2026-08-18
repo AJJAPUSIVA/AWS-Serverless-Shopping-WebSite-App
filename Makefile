@@ -1,4 +1,4 @@
-all: backend frontend-build
+all: backend
 
 TEMPLATES = auth product-mock shoppingcart-service agent-service
 
@@ -39,10 +39,8 @@ amplify-deploy:
 			SrcS3Bucket=$(S3_BUCKET) \
 		--stack-name CartApp
 
-frontend-serve: 
-	$(MAKE) -C frontend serve
+frontend-serve:
+	@echo "Open frontend-vanilla/index.html in your browser"
+	@echo "Or serve with: python3 -m http.server 8080 -d frontend-vanilla"
 
-frontend-build: 
-	$(MAKE) -C frontend build
-
-.PHONY: all backend backend-delete backend-tests create-bucket amplify-deploy frontend-serve frontend-build
+.PHONY: all backend backend-delete backend-tests create-bucket amplify-deploy frontend-serve

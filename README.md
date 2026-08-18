@@ -14,7 +14,7 @@ This project demonstrates a production-style shopping cart microservice with an 
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | Vue.js 2 (legacy) + Vanilla HTML/CSS/JS (new) |
+| **Frontend** | HTML/CSS/JS + Bootstrap 5 |
 | **API** | Amazon API Gateway (REST) |
 | **Compute** | AWS Lambda (Python 3.13) |
 | **Database** | Amazon DynamoDB |
@@ -39,7 +39,6 @@ This project demonstrates a production-style shopping cart microservice with an 
 - **Python** >= 3.13.0
 - **AWS SAM CLI** >= 1.165.0
 - **AWS CLI** (configured with credentials)
-- **Node.js & Yarn** (for legacy frontend)
 - **boto3** (Python)
 - **Amazon Bedrock** model enabled in your account/region (default: `amazon.nova-lite-v1:0`)
 
@@ -72,15 +71,8 @@ This will:
 
 ### 4. Run the Frontend
 
-**Option A — Vanilla HTML/CSS/JS (no build step):**
 1. Edit `frontend-vanilla/js/config.js` with your API URLs and Cognito IDs
 2. Open `frontend-vanilla/index.html` in a browser or serve with any static server
-
-**Option B — Vue.js (legacy, requires Node.js):**
-```bash
-make frontend-serve
-```
-Access at **http://localhost:8080/**
 
 > **Note:** CORS is configured for `http://localhost:8080`. Using `127.0.0.1` or a different port will cause CORS errors.
 
@@ -167,8 +159,7 @@ The assistant uses Amazon Bedrock Agents with six purpose-built action tools. Ca
 │   ├── product-mock-service/        # Product Lambda handlers (Python)
 │   ├── agent-service/               # Agent Lambda handlers (Python)
 │   └── layers/                      # Shared Lambda layer
-├── frontend/                        # Vue.js frontend (legacy)
-├── frontend-vanilla/                # Plain HTML/CSS/JS frontend (new)
+├── frontend-vanilla/                # Plain HTML/CSS/JS frontend
 │   ├── index.html                   # Single page app
 │   ├── css/style.css                # Bootstrap 5 + custom styles
 │   └── js/                          # Modular JS (auth, api, cart, products, assistant)
@@ -189,8 +180,7 @@ The GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR t
 |-----|-------------|
 | `backend-lint` | Compiles Python, lints CloudFormation templates |
 | `backend-tests` | Runs unit tests for agent-service and shopping-cart-service |
-| `frontend-legacy` | Lints and builds the Vue.js frontend |
-| `frontend-vanilla` | Validates HTML, lints JS, checks config structure |
+| `frontend` | Validates HTML, lints JS, checks config structure |
 | `security` | Audits Python deps, scans for hardcoded secrets, checks for unwanted files |
 
 ---
