@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DEMO Store - AWS Serverless Shopping Cart</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-md navbar-dark bg-primary sticky-top shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="#">
+        DEMO <span class="fw-light text-light opacity-75">Store</span>
+      </a>
+      <div class="d-flex align-items-center gap-2">
+        <!-- Auth Button -->
+        <button id="btn-auth" class="btn btn-outline-light btn-sm" onclick="Auth.showModal()">Sign In</button>
+        <button id="btn-signout" class="btn btn-outline-light btn-sm d-none" onclick="Auth.signOut()">Sign Out</button>
+        <!-- Cart Button -->
+        <button class="btn btn-warning position-relative" type="button" data-bs-toggle="offcanvas" data-bs-target="#cartDrawer">
+          <i class="bi bi-cart3"></i>
+          <span id="cart-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="d-none">
+    <div class="spinner-border text-warning" role="status"></div>
+    <p id="loading-text" class="mt-3 text-white fs-5"></p>
+  </div>
+
+  <!-- Main Content: Products Grid -->
+  <main class="container py-4">
+    <div id="products-grid" class="row g-4">
+      <!-- Products rendered here by JS -->
+    </div>
+  </main>
+
+  <!-- Cart Offcanvas (Right Drawer) -->
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="cartDrawer" aria-labelledby="cartDrawerLabel">
+    <div class="offcanvas-header bg-primary text-white">
+      <h5 class="offcanvas-title" id="cartDrawerLabel"><i class="bi bi-cart3 me-2"></i>Shopping Cart</h5>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column">
+      <div id="cart-items" class="flex-grow-1 overflow-auto">
+        <!-- Cart items rendered here -->
+      </div>
+      <div id="cart-footer" class="border-top pt-3 mt-3">
+        <p class="fw-bold fs-5">Total: $<span id="cart-total">0.00</span></p>
+        <button id="btn-checkout" class="btn btn-warning w-100 d-none" onclick="Cart.checkout()">
+          Checkout
+        </button>
+        <p id="cart-empty-msg" class="text-muted text-center">Cart is empty</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checkout Modal -->
+  <div class="modal fade" id="checkoutModal" tabindex="-1" aria-labelledby="checkoutModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="checkoutModalLabel">Payment</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="payment-form" novalidate>
+            <div class="mb-3">
+              <label for="card-number" class="form-label">Card Number</label>
+              <input type="text" class="form-control" id="card-number" placeholder="1234 5678 9012 3456" maxlength="19" required />
+              <div class="invalid-feedback">Valid card number is required.</div>
+            </div>
+            <div class="mb-3">
+              <label for="card-name" class="form-label">Cardholder Name</label>
+              <input type="text" class="form-control" id="card-name" placeholder="John Doe" required />
+              <div class="invalid-feedback">Cardholder name is required.</div>
+            </div>
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label for="card-expiry" class="form-label">Expiry</label>
+                <input type="text" class="form-control" id="card-expiry" placeholder="MM/YY" maxlength="5" required />
+                <div class="invalid-feedback">Expiry is required.</div>
+              </div>
+              <div class="col-6 mb-3">
+                <label for="card-cvc" class="form-label">CVC</label>
+                <input type="text" class="form-control" id="card-cvc" placeholder="123" maxlength="4" required />
+                <div class="invalid-feedback">CVC is required.</div>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-warning w-100 fw-bold">Pay $<span id="checkout-total">0.00</span></button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="authModalLabel">Sign In</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Sign In Form -->
+          <form id="signin-form" novalidate>
+            <div class="mb-3">
+              <label for="signin-email" class="form-label">Email</label>
+              <input type="email" class="form-control" id="signin-email" required />
+            </div>
+            <div class="mb-3">
+              <label for="signin-password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="signin-password" required />
+            </div>
+            <div id="signin-error" class="alert alert-danger d-none"></div>
+            <button type="submit" class="btn btn-warning w-100 fw-bold">Sign In</button>
+            <p class="text-center mt-3 mb-0">
+              <a href="#" onclick="Auth.showRegister(); return false;">Create Account</a> |
+              <a href="#" onclick="Auth.showConfirm(); return false;">Verify Code</a>
+            </p>
+          </form>
+          <!-- Register Form -->
+          <form id="register-form" class="d-none" novalidate>
+            <div class="mb-3">
+              <label for="register-email" class="form-label">Email</label>
+              <input type="email" class="form-control" id="register-email" required />
+            </div>
+            <div class="mb-3">
+              <label for="register-password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="register-password" required />
+            </div>
+            <div id="register-error" class="alert alert-danger d-none"></div>
+            <button type="submit" class="btn btn-warning w-100 fw-bold">Create Account</button>
+            <p class="text-center mt-3 mb-0">
+              <a href="#" onclick="Auth.showSignIn(); return false;">Back to Sign In</a>
+            </p>
+          </form>
+          <!-- Confirm Form -->
+          <form id="confirm-form" class="d-none" novalidate>
+            <div class="mb-3">
+              <label for="confirm-email" class="form-label">Email</label>
+              <input type="email" class="form-control" id="confirm-email" required />
+            </div>
+            <div class="mb-3">
+              <label for="confirm-code" class="form-label">Verification Code</label>
+              <input type="text" class="form-control" id="confirm-code" required />
+            </div>
+            <div id="confirm-error" class="alert alert-danger d-none"></div>
+            <button type="submit" class="btn btn-warning w-100 fw-bold">Verify</button>
+            <p class="text-center mt-3 mb-0">
+              <a href="#" onclick="Auth.showSignIn(); return false;">Back to Sign In</a>
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Assistant Chat Widget -->
+  <button id="assistant-toggle" class="btn btn-warning btn-lg rounded-circle shadow" onclick="Assistant.open()" aria-label="Open shopping assistant">
+    <i class="bi bi-chat-dots-fill"></i>
+  </button>
+
+  <div id="assistant-panel" class="card shadow d-none">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <span class="fw-bold">Shopping Assistant</span>
+      <button class="btn btn-sm btn-outline-light border-0" onclick="Assistant.close()" aria-label="Close assistant">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div id="assistant-messages" class="card-body overflow-auto">
+      <div class="assistant-msg assistant">Hi! I can find products, compare prices, and help manage your cart.</div>
+    </div>
+    <div class="card-footer">
+      <div id="assistant-signin-notice" class="alert alert-info py-2 mb-2 d-none">
+        <a href="#" onclick="Auth.showModal(); return false;">Sign in</a> to use the assistant.
+      </div>
+      <div class="input-group">
+        <input id="assistant-input" type="text" class="form-control" placeholder="Try: Find fruit under $5" maxlength="2000" disabled />
+        <button id="assistant-send" class="btn btn-warning" onclick="Assistant.send()" disabled aria-label="Send message">
+          <i class="bi bi-send-fill"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- AWS Cognito Identity SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.12/dist/amazon-cognito-identity.min.js"></script>
+  <!-- App Scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/cart.js"></script>
+  <script src="js/products.js"></script>
+  <script src="js/assistant.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

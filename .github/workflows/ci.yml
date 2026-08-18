@@ -13,10 +13,10 @@ permissions:
   contents: read
 
 jobs:
-  backend:
-    name: Backend and security
+  backend-lint:
+    name: Backend lint & compile
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -32,15 +32,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-ci.txt
 
-      - name: Verify patched sqlparse
+      - name: Verify pinned sqlparse
         run: |
           python -c "import sqlparse; assert sqlparse.__version__ == '0.6.0', sqlparse.__version__"
           pip check
 
-      - name: Run agent tests
-        run: python -m unittest discover -s backend/agent-service/tests -v
-
-      - name: Compile Python
+      - name: Compile Python (syntax check)
         run: |
           python -m compileall \
             backend/agent-service \
@@ -48,7 +45,7 @@ jobs:
             backend/product-mock-service \
             backend/layers
 
-      - name: Lint CloudFormation
+      - name: Lint CloudFormation templates
         run: |
           cfn-lint \
             backend/agent-service.yaml \
@@ -57,10 +54,36 @@ jobs:
             backend/auth.yaml \
             amplify-ci/amplify-template.yaml
 
-  frontend:
-    name: Frontend
+  backend-tests:
+    name: Backend unit tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install CI dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci.txt
+
+      - name: Run agent service tests
+        run: python -m unittest discover -s backend/agent-service/tests -v
+
+      - name: Run shopping cart service tests
+        working-directory: backend
+        run: python -m unittest discover -s shopping-cart-service/tests -v
+
+  frontend-legacy:
+    name: Frontend (Vue.js - legacy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -80,3 +103,103 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  frontend-vanilla:
+    name: Frontend (Vanilla HTML/CSS/JS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend-vanilla
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install test tools
+        run: |
+          npm install -g htmlhint@1.1.4
+          npm install -g eslint@8.57.0
+
+      - name: Validate HTML
+        run: htmlhint index.html
+
+      - name: Lint JavaScript
+        run: |
+          eslint --no-eslintrc \
+            --env browser,es2021 \
+            --globals AmazonCognitoIdentity,bootstrap,CONFIG,Auth,Api,Cart,Products,Assistant,getProduct,showLoading,hideLoading \
+            --rule '{"no-undef": "error", "no-unused-vars": "warn", "semi": ["warn", "always"], "no-console": "off"}' \
+            js/*.js
+
+      - name: Check no unwanted files
+        run: |
+          UNWANTED_FILES="siva.txt TODO.txt temp.js"
+          for f in $UNWANTED_FILES; do
+            if [ -f "../$f" ] || [ -f "$f" ]; then
+              echo "ERROR: Unwanted file found: $f"
+              exit 1
+            fi
+          done
+          echo "No unwanted files found."
+
+      - name: Validate config structure
+        run: |
+          node -e "
+            const fs = require('fs');
+            const content = fs.readFileSync('js/config.js', 'utf8');
+            eval(content);
+            const required = ['REGION', 'USER_POOL_ID', 'USER_POOL_CLIENT_ID', 'CART_API_URL', 'PRODUCTS_API_URL', 'ASSISTANT_API_URL'];
+            for (const key of required) {
+              if (!CONFIG[key]) { console.error('Missing CONFIG.' + key); process.exit(1); }
+            }
+            console.log('Config structure valid.');
+          "
+
+  security:
+    name: Security & dependency check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install safety scanner
+        run: pip install pip-audit
+
+      - name: Audit Python dependencies
+        run: |
+          pip install -r requirements-ci.txt
+          pip-audit
+
+      - name: Check for secrets in code
+        run: |
+          # Basic check for hardcoded secrets/tokens
+          PATTERNS="AKIA[A-Z0-9]{16}|password\s*=\s*['\"][^'\"]+['\"]|sk-[a-zA-Z0-9]{48}"
+          if grep -rE "$PATTERNS" --include="*.py" --include="*.js" --include="*.yaml" --include="*.yml" \
+            --exclude-dir=node_modules --exclude-dir=.git .; then
+            echo "ERROR: Potential secrets found in source code!"
+            exit 1
+          fi
+          echo "No secrets detected."
+
+      - name: Check for unwanted files
+        run: |
+          FOUND=0
+          for f in siva.txt TODO.txt temp.js .env; do
+            if [ -f "$f" ]; then
+              echo "ERROR: Unwanted file in repo root: $f"
+              FOUND=1
+            fi
+          done
+          if [ $FOUND -eq 1 ]; then exit 1; fi
+          echo "Repo is clean."
