@@ -107,7 +107,7 @@ jobs:
         run: |
           eslint --no-eslintrc \
             --env browser,es2021 \
-            --globals AmazonCognitoIdentity,bootstrap,CONFIG,Auth,Api,Cart,Products,Assistant,getProduct,showLoading,hideLoading \
+            --global AmazonCognitoIdentity,bootstrap,CONFIG,Auth,Api,Cart,Products,Assistant,getProduct,showLoading,hideLoading \
             --rule '{"no-undef": "error", "no-unused-vars": "warn", "semi": ["warn", "always"], "no-console": "off"}' \
             js/*.js
 
