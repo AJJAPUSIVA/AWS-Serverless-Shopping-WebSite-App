@@ -12,7 +12,7 @@
     "aws-amplify": "^1.2.3",
     "aws-amplify-vue": "^0.3.3",
     "core-js": "^3.3.2",
-    "decimal.js": "^10.2.0",
+    "decimal.js": "^10.6.0",
     "dotenv": "^8.2.0",
     "v-mask": "^2.0.2",
     "vue": "^2.6.10",
