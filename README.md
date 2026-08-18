@@ -14,7 +14,7 @@ This project demonstrates a production-style shopping cart microservice with an 
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | Vue.js 2, Vuetify, AWS Amplify SDK |
+| **Frontend** | Vue.js 2 (legacy) + Vanilla HTML/CSS/JS (new) |
 | **API** | Amazon API Gateway (REST) |
 | **Compute** | AWS Lambda (Python 3.13) |
 | **Database** | Amazon DynamoDB |
@@ -39,7 +39,7 @@ This project demonstrates a production-style shopping cart microservice with an 
 - **Python** >= 3.13.0
 - **AWS SAM CLI** >= 1.165.0
 - **AWS CLI** (configured with credentials)
-- **Node.js & Yarn** (for frontend)
+- **Node.js & Yarn** (for legacy frontend)
 - **boto3** (Python)
 - **Amazon Bedrock** model enabled in your account/region (default: `amazon.nova-lite-v1:0`)
 
@@ -50,8 +50,8 @@ This project demonstrates a production-style shopping cart microservice with an 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/<your-username>/aws-serverless-shopping-cart.git
-cd aws-serverless-shopping-cart
+git clone https://github.com/AJJAPUSIVA/AWS-Serverless-Shopping-WebSite-App.git
+cd AWS-Serverless-Shopping-WebSite-App
 ```
 
 ### 2. (Optional) Set AWS Profile
@@ -70,13 +70,17 @@ This will:
 - Create an S3 deployment bucket (auto-named with your account ID and region)
 - Deploy the Auth, Product, Shopping Cart, and Agent stacks in order
 
-### 4. Run the Frontend Locally
+### 4. Run the Frontend
 
+**Option A — Vanilla HTML/CSS/JS (no build step):**
+1. Edit `frontend-vanilla/js/config.js` with your API URLs and Cognito IDs
+2. Open `frontend-vanilla/index.html` in a browser or serve with any static server
+
+**Option B — Vue.js (legacy, requires Node.js):**
 ```bash
 make frontend-serve
 ```
-
-Access the app at **http://localhost:8080/**
+Access at **http://localhost:8080/**
 
 > **Note:** CORS is configured for `http://localhost:8080`. Using `127.0.0.1` or a different port will cause CORS errors.
 
@@ -89,8 +93,8 @@ Click **Sign In** → **Create Account**. Use a valid email to receive the verif
 ## Alternative: Full Deployment via AWS Amplify Console
 
 ```bash
-export GITHUB_REPO=https://github.com/<your-username>/aws-serverless-shopping-cart
-export GITHUB_BRANCH=master
+export GITHUB_REPO=https://github.com/AJJAPUSIVA/AWS-Serverless-Shopping-WebSite-App
+export GITHUB_BRANCH=main
 export GITHUB_OAUTH_TOKEN=<your-github-personal-access-token>
 
 make amplify-deploy
@@ -154,7 +158,6 @@ The assistant uses Amazon Bedrock Agents with six purpose-built action tools. Ca
 ## Project Structure
 
 ```
-AWS-Serverless-Shopping-WebSite-App-https/
 ├── backend/
 │   ├── auth.yaml                    # Cognito stack
 │   ├── product-mock.yaml            # Product catalog stack
@@ -164,15 +167,31 @@ AWS-Serverless-Shopping-WebSite-App-https/
 │   ├── product-mock-service/        # Product Lambda handlers (Python)
 │   ├── agent-service/               # Agent Lambda handlers (Python)
 │   └── layers/                      # Shared Lambda layer
-├── frontend/
-│   ├── src/                         # Vue.js application source
-│   ├── public/                      # Static assets
-│   └── package.json
+├── frontend/                        # Vue.js frontend (legacy)
+├── frontend-vanilla/                # Plain HTML/CSS/JS frontend (new)
+│   ├── index.html                   # Single page app
+│   ├── css/style.css                # Bootstrap 5 + custom styles
+│   └── js/                          # Modular JS (auth, api, cart, products, assistant)
 ├── amplify-ci/                      # Amplify Console CloudFormation template
 ├── amplify.yml                      # Amplify build spec
 ├── Makefile                         # Top-level build orchestration
+├── requirements-ci.txt              # Pinned CI dependencies
 └── README.md
 ```
+
+---
+
+## CI/CD Pipeline
+
+The GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
+
+| Job | What it does |
+|-----|-------------|
+| `backend-lint` | Compiles Python, lints CloudFormation templates |
+| `backend-tests` | Runs unit tests for agent-service and shopping-cart-service |
+| `frontend-legacy` | Lints and builds the Vue.js frontend |
+| `frontend-vanilla` | Validates HTML, lints JS, checks config structure |
+| `security` | Audits Python deps, scans for hardcoded secrets, checks for unwanted files |
 
 ---
 
@@ -188,4 +207,4 @@ If deployed via Amplify, also delete the **CartApp** stack from CloudFormation.
 
 ## License
 
-MIT-0 License. See [LICENSE](./AWS-Serverless-Shopping-WebSite-App-https/LICENSE).
+MIT-0 License. See [LICENSE](LICENSE).
