@@ -10,30 +10,41 @@ from unittest.mock import MagicMock, patch
 MODULE_PATH = pathlib.Path(__file__).parents[1] / "action_handler.py"
 
 
+class FakeRepositoryError(RuntimeError):
+    pass
+
+
 class ActionHandlerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        environment = {
-            "PRODUCT_SERVICE_URL": "https://products.example.test",
-            "CART_TABLE_NAME": "cart-table",
-            "SESSION_TABLE_NAME": "session-table",
-            "AWS_DEFAULT_REGION": "us-east-1",
-        }
-        cls.environment = patch.dict(os.environ, environment)
+        cls.environment = patch.dict(
+            os.environ,
+            {"SESSION_TABLE_NAME": "session-table", "AWS_DEFAULT_REGION": "us-east-1"},
+        )
         cls.environment.start()
+
         boto3_module = types.ModuleType("boto3")
         boto3_module.resource = MagicMock()
-        boto3_module.resource.return_value.Table.return_value = MagicMock()
-        dynamodb_module = types.ModuleType("boto3.dynamodb")
-        conditions_module = types.ModuleType("boto3.dynamodb.conditions")
-        conditions_module.Key = MagicMock()
+        cls.repository = types.ModuleType("mysql_repository")
+        for name in ("EmptyCartError", "InventoryError", "NotFoundError"):
+            setattr(cls.repository, name, FakeRepositoryError)
+        for name in (
+            "add_cart_item",
+            "cart_total",
+            "checkout_cart",
+            "get_inventory",
+            "list_products",
+            "order_history",
+            "sales_summary",
+            "set_cart_item_quantity",
+            "user_owner_key",
+        ):
+            setattr(cls.repository, name, MagicMock())
+        cls.repository.user_owner_key.side_effect = lambda value: f"user:{value}"
+
         cls.modules = patch.dict(
             sys.modules,
-            {
-                "boto3": boto3_module,
-                "boto3.dynamodb": dynamodb_module,
-                "boto3.dynamodb.conditions": conditions_module,
-            },
+            {"boto3": boto3_module, "mysql_repository": cls.repository},
         )
         cls.modules.start()
         spec = importlib.util.spec_from_file_location("action_handler", MODULE_PATH)
@@ -47,32 +58,46 @@ class ActionHandlerTests(unittest.TestCase):
         cls.environment.stop()
         sys.modules.pop("action_handler", None)
 
+    def setUp(self):
+        for value in vars(self.repository).values():
+            if isinstance(value, MagicMock):
+                value.reset_mock()
+        self.repository.user_owner_key.side_effect = lambda value: f"user:{value}"
+
     def test_positive_quantity_rejects_zero(self):
         with self.assertRaises(self.module.ToolInputError):
-            self.module._positive_quantity("0")
+            self.module._quantity("0")
 
-    def test_search_filters_by_category_and_price(self):
-        products = {
-            "products": [
-                {"productId": "1", "name": "Apple", "category": "fruit", "price": 125},
-                {"productId": "2", "name": "Steak", "category": "meat", "price": 900},
-            ]
-        }
-        with patch.object(self.module, "_fetch_json", return_value=products):
-            result = self.module.search_products(
-                {"category": "fruit", "max_price": "2.00"}, "user#123"
-            )
-        self.assertEqual(result["matchCount"], 1)
-        self.assertEqual(result["products"][0]["productId"], "1")
+    def test_search_uses_typed_repository_filters(self):
+        self.repository.list_products.return_value = [
+            {
+                "productId": "1",
+                "name": "Apple",
+                "category": "fruit",
+                "description": "Fresh",
+                "price": 125,
+                "availableQuantity": 8,
+            }
+        ]
+        result = self.module.search_products(
+            {"category": "fruit", "max_price": "2.00"}, "user-sub"
+        )
+        self.repository.list_products.assert_called_once_with(
+            query=None, category="fruit", max_price_cents=200, limit=8
+        )
+        self.assertEqual(result["products"][0]["price"], 1.25)
 
-    def test_checkout_preview_does_not_delete_items(self):
-        with patch.object(
-            self.module,
-            "_cart_summary",
-            return_value={"products": [], "total": 0.0},
-        ):
-            result = self.module.preview_checkout({}, "user#123")
+    def test_checkout_preview_does_not_place_order(self):
+        self.repository.cart_total.return_value = {"products": [], "total": 0.0}
+        result = self.module.preview_checkout({}, "user-sub")
+        self.repository.checkout_cart.assert_not_called()
         self.assertIn("preview only", result["message"].lower())
+
+    def test_confirm_checkout_uses_customer_identity(self):
+        self.repository.checkout_cart.return_value = {"orderId": "order-1"}
+        result = self.module.confirm_checkout({}, "customer-sub")
+        self.repository.checkout_cart.assert_called_once_with("customer-sub")
+        self.assertEqual(result["order"]["orderId"], "order-1")
 
 
 if __name__ == "__main__":

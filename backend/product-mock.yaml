@@ -1,12 +1,27 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  product-service
+  product-catalog-service
 
-  SAM Template for mock product-service
+  SAM template for the MySQL product catalog
 Parameters:
   AllowedOrigin:
     Type: 'String'
+  DatabaseProxyEndpoint:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/serverless-shopping-cart-demo/mysql/proxy-endpoint'
+  DatabaseName:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/serverless-shopping-cart-demo/mysql/database-name'
+  DatabaseUser:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/serverless-shopping-cart-demo/mysql/database-user'
+  DatabaseSecurityGroupId:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/serverless-shopping-cart-demo/mysql/lambda-security-group'
+  DatabaseSubnetIds:
+    Type: 'AWS::SSM::Parameter::Value<List<String>>'
+    Default: '/serverless-shopping-cart-demo/mysql/private-subnets'
 
 Globals:
   Function:
@@ -19,8 +34,16 @@ Globals:
       Variables:
         LOG_LEVEL: "DEBUG"
         ALLOWED_ORIGIN: !Ref AllowedOrigin
-        POWERTOOLS_SERVICE_NAME: product-mock
+        POWERTOOLS_SERVICE_NAME: product-catalog
         POWERTOOLS_METRICS_NAMESPACE: ecommerce-app
+        DB_HOST: !Ref DatabaseProxyEndpoint
+        DB_PORT: '3306'
+        DB_NAME: !Ref DatabaseName
+        DB_USER: !Ref DatabaseUser
+    VpcConfig:
+      SecurityGroupIds:
+        - !Ref DatabaseSecurityGroupId
+      SubnetIds: !Ref DatabaseSubnetIds
   Api:
     EndpointConfiguration: REGIONAL
     TracingEnabled: true
@@ -31,11 +54,28 @@ Globals:
       AllowOrigin: !Sub "'${AllowedOrigin}'"
 
 Resources:
+  UtilsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: ./layers/
+      CompatibleRuntimes:
+        - python3.13
+    Metadata:
+      BuildMethod: python3.13
+
   GetProductFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: product-mock-service/
       Handler: get_product.lambda_handler
+      Layers:
+        - !Ref UtilsLayer
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action: rds-db:connect
+              Resource: !Sub arn:${AWS::Partition}:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/${DatabaseUser}
       Events:
         ListCart:
           Type: Api
@@ -48,6 +88,14 @@ Resources:
     Properties:
       CodeUri: product-mock-service/
       Handler: get_products.lambda_handler
+      Layers:
+        - !Ref UtilsLayer
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action: rds-db:connect
+              Resource: !Sub arn:${AWS::Partition}:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/${DatabaseUser}
       Events:
         ListCart:
           Type: Api
@@ -65,5 +113,5 @@ Resources:
 
 Outputs:
   ProductApi:
-    Description: "API Gateway endpoint URL for Prod stage for Product Mock Service"
+    Description: "API Gateway endpoint URL for the MySQL product catalog"
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
