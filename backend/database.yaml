@@ -1,0 +1,312 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Aurora Serverless v2 MySQL, RDS Proxy, networking, and commerce schema
+
+Parameters:
+  AllowedOrigin:
+    Type: String
+    Default: http://localhost:8080
+    Description: Accepted for compatibility with the shared deployment command
+  DatabaseName:
+    Type: String
+    Default: shopping
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
+  DatabaseUser:
+    Type: String
+    Default: shopping_app
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
+  MinCapacity:
+    Type: Number
+    Default: 0.5
+  MaxCapacity:
+    Type: Number
+    Default: 4
+
+Resources:
+  CommerceVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-vpc
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CommerceVpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.42.1.0/24
+      MapPublicIpOnLaunch: false
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CommerceVpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.42.2.0/24
+      MapPublicIpOnLaunch: false
+
+  PrivateRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CommerceVpc
+
+  PrivateRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CommerceVpc
+
+  SubnetRouteTableAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTableA
+
+  SubnetRouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTableB
+
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref CommerceVpc
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTableA
+        - !Ref PrivateRouteTableB
+
+  DynamoDbEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref CommerceVpc
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.dynamodb
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTableA
+        - !Ref PrivateRouteTableB
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Accept MySQL only from RDS Proxy
+      VpcId: !Ref CommerceVpc
+
+  ProxySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Accept MySQL only from application Lambdas
+      VpcId: !Ref CommerceVpc
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Egress for MySQL application Lambdas
+      VpcId: !Ref CommerceVpc
+
+  ProxyIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ProxySecurityGroup
+      SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+
+  DatabaseIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref DatabaseSecurityGroup
+      SourceSecurityGroupId: !Ref ProxySecurityGroup
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for Aurora MySQL
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Credentials used by RDS Proxy to reach Aurora MySQL
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username":"${DatabaseUser}"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\\'
+
+  DatabaseCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: aurora-mysql
+      EngineMode: provisioned
+      DatabaseName: !Ref DatabaseName
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DatabaseSecurityGroup
+      EnableIAMDatabaseAuthentication: true
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      CopyTagsToSnapshot: true
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DatabaseSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DatabaseSecret}:SecretString:password}}'
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: !Ref MinCapacity
+        MaxCapacity: !Ref MaxCapacity
+
+  DatabaseInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora-mysql
+      DBClusterIdentifier: !Ref DatabaseCluster
+      DBInstanceClass: db.serverless
+      PubliclyAccessible: false
+
+  SecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref DatabaseSecret
+      TargetId: !Ref DatabaseCluster
+      TargetType: AWS::RDS::DBCluster
+
+  ProxyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ReadDatabaseSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DatabaseSecret
+
+  DatabaseProxy:
+    Type: AWS::RDS::DBProxy
+    Properties:
+      DBProxyName: !Sub ${AWS::StackName}-proxy
+      EngineFamily: MYSQL
+      RoleArn: !GetAtt ProxyRole.Arn
+      RequireTLS: true
+      IdleClientTimeout: 1800
+      DebugLogging: false
+      VpcSecurityGroupIds:
+        - !Ref ProxySecurityGroup
+      VpcSubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+      Auth:
+        - AuthScheme: SECRETS
+          IAMAuth: REQUIRED
+          SecretArn: !Ref DatabaseSecret
+
+  DatabaseProxyTargetGroup:
+    Type: AWS::RDS::DBProxyTargetGroup
+    DependsOn: DatabaseInstance
+    Properties:
+      DBProxyName: !Ref DatabaseProxy
+      TargetGroupName: default
+      DBClusterIdentifiers:
+        - !Ref DatabaseCluster
+
+  SchemaFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: DatabaseProxyTargetGroup
+    Properties:
+      CodeUri: database/
+      Handler: schema_loader.lambda_handler
+      Runtime: python3.13
+      Timeout: 300
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
+      Environment:
+        Variables:
+          DB_HOST: !GetAtt DatabaseProxy.Endpoint
+          DB_PORT: '3306'
+          DB_NAME: !Ref DatabaseName
+          DB_USER: !Ref DatabaseUser
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action: rds-db:connect
+              Resource: !Sub arn:${AWS::Partition}:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/${DatabaseUser}
+
+  Schema:
+    Type: Custom::CommerceSchema
+    DependsOn:
+      - DatabaseProxyTargetGroup
+      - S3Endpoint
+    Properties:
+      ServiceToken: !GetAtt SchemaFunction.Arn
+      SchemaVersion: '1'
+
+  ProxyEndpointParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /serverless-shopping-cart-demo/mysql/proxy-endpoint
+      Type: String
+      Value: !GetAtt DatabaseProxy.Endpoint
+
+  DatabaseNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /serverless-shopping-cart-demo/mysql/database-name
+      Type: String
+      Value: !Ref DatabaseName
+
+  DatabaseUserParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /serverless-shopping-cart-demo/mysql/database-user
+      Type: String
+      Value: !Ref DatabaseUser
+
+  LambdaSecurityGroupParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /serverless-shopping-cart-demo/mysql/lambda-security-group
+      Type: String
+      Value: !Ref LambdaSecurityGroup
+
+  PrivateSubnetsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /serverless-shopping-cart-demo/mysql/private-subnets
+      Type: StringList
+      Value: !Join [',', [!Ref PrivateSubnetA, !Ref PrivateSubnetB]]
+
+Outputs:
+  ProxyEndpoint:
+    Value: !GetAtt DatabaseProxy.Endpoint
+  DatabaseName:
+    Value: !Ref DatabaseName
+  LambdaSecurityGroupId:
+    Value: !Ref LambdaSecurityGroup
+  PrivateSubnetIds:
+    Value: !Join [',', [!Ref PrivateSubnetA, !Ref PrivateSubnetB]]

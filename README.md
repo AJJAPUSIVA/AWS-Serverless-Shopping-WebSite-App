@@ -1,200 +1,166 @@
-# AWS Serverless Shopping Website App
+# AWS Serverless MySQL Agentic Shopping Assistant
 
-Full-stack serverless e-commerce app with AI shopping assistant — built with AWS SAM, vanilla JS, and Amazon Bedrock.
+A sample online store with a Vue interface and an Amazon Bedrock shopping agent. Product, inventory, cart, customer,
+and order data are stored in Aurora Serverless v2 MySQL. AWS Lambda reaches MySQL through RDS Proxy using IAM
+authentication.
 
----
-
-## Overview
-
-This project demonstrates a production-style shopping cart microservice with an LLM-powered personal shopping agent. Users can browse products, manage their cart, and interact with an AI assistant that can search the catalog, inspect the cart, and perform confirmed cart actions.
-
----
+The assistant can search products, check stock, manage a signed-in customer's cart, show order history, summarize
+popular products, and create an order after the customer confirms checkout.
 
 ## Architecture
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | HTML/CSS/JS + Bootstrap 5 |
-| **API** | Amazon API Gateway (REST) |
-| **Compute** | AWS Lambda (Python 3.13) |
-| **Database** | Amazon DynamoDB |
-| **Auth** | Amazon Cognito |
-| **AI Assistant** | Amazon Bedrock Agent (Nova Lite v1) |
-| **CI/CD** | AWS Amplify Console / GitHub Actions |
-| **IaC** | AWS SAM (CloudFormation) |
+```mermaid
+flowchart TD
+    Vue[Vue storefront and chat] --> API[API Gateway]
+    API --> Lambda[Lambda services]
+    Lambda --> Proxy[RDS Proxy]
+    Proxy --> MySQL[Aurora Serverless v2 MySQL]
+    Lambda --> Cognito[Amazon Cognito]
+    Chat[Chat Lambda] --> Agent[Amazon Bedrock Agent]
+    Agent --> Tools[Shopping tool Lambda]
+    Tools --> Proxy
+```
 
-### Backend Services
+| Component | Purpose |
+|---|---|
+| Vue 2 and AWS Amplify | Storefront, authentication, cart, and chat interface |
+| Amazon Cognito | Customer sign-up, sign-in, and API authorization |
+| API Gateway and Lambda | Product, cart, checkout, and assistant APIs |
+| Aurora Serverless v2 MySQL | Relational commerce data and transactions |
+| RDS Proxy | Pooled, TLS-protected Lambda database connections |
+| Amazon Bedrock Agents | Conversation and selection of controlled shopping tools |
+| DynamoDB | Short-lived binding between a Bedrock session and a Cognito customer |
 
-| Stack | Purpose |
-|-------|---------|
-| `auth.yaml` | Cognito User Pool & App Client |
-| `product-mock.yaml` | Mock product catalog API |
-| `shoppingcart-service.yaml` | Cart CRUD, migration, checkout, DynamoDB Streams aggregation |
-| `agent-service.yaml` | Bedrock Agent for AI shopping assistant |
+## MySQL data model
 
----
+The schema is in `backend/database/schema.sql` and contains:
 
-## Prerequisites
+- `products` and `product_tags`
+- `inventory`
+- `customers`
+- `carts` and `cart_items`
+- `orders` and `order_items`
 
-- **Python** >= 3.13.0
-- **AWS SAM CLI** >= 1.165.0
-- **AWS CLI** (configured with credentials)
-- **boto3** (Python)
-- **Amazon Bedrock** model enabled in your account/region (default: `amazon.nova-lite-v1:0`)
+Checkout runs as one database transaction. It locks the cart and inventory rows, validates stock, creates the order,
+copies the purchased product details into `order_items`, reduces inventory, and clears the cart. A failure rolls back
+the entire operation.
 
----
+## Shopping-agent tools
 
-## Quick Start
+| Tool | Behavior |
+|---|---|
+| `search_products` | Searches the MySQL catalog using typed filters |
+| `check_inventory` | Reads current stock for one product |
+| `get_cart` | Reads the signed-in customer's cart and total |
+| `add_to_cart` | Adds a verified product after confirmation |
+| `update_cart_quantity` | Sets or removes a cart item after confirmation |
+| `preview_checkout` | Calculates a checkout preview without writing data |
+| `confirm_checkout` | Creates the order after explicit confirmation |
+| `get_order_history` | Lists only the signed-in customer's recent orders |
+| `get_sales_summary` | Returns aggregate product sales without customer data |
 
-### 1. Clone the Repository
+The model cannot submit SQL. Each tool calls a fixed function in `backend/layers/mysql_repository.py`, and every value
+is passed to MySQL as a parameter. Cognito identity is obtained from the authenticated API or the server-side session
+binding, never from model-generated input.
+
+## API
+
+Product browsing is public:
+
+- `GET /product`
+- `GET /product/{product_id}`
+
+Cart operations require a Cognito ID token:
+
+- `GET /cart`
+- `POST /cart`
+- `PUT /cart/{product_id}`
+- `POST /cart/checkout`
+- `GET /cart/{product_id}/total`
+
+The assistant also requires authentication:
+
+- `POST /assistant`
+
+## Deploy to AWS
+
+Requirements:
+
+- AWS CLI configured for your account
+- AWS SAM CLI 1.165 or newer
+- Python 3.13
+- Node.js 20
+- An Amazon Bedrock model enabled in the deployment region
+
+Clone the repository and deploy all backend stacks:
 
 ```bash
 git clone https://github.com/AJJAPUSIVA/AWS-Serverless-Shopping-WebSite-App.git
 cd AWS-Serverless-Shopping-WebSite-App
-```
-
-### 2. (Optional) Set AWS Profile
-
-```bash
-export AWS_PROFILE=<your-profile-name>
-```
-
-### 3. Deploy the Backend
-
-```bash
 make backend
 ```
 
-This will:
-- Create an S3 deployment bucket (auto-named with your account ID and region)
-- Deploy the Auth, Product, Shopping Cart, and Agent stacks in order
+The deployment order is authentication, MySQL, product API, cart API, and Bedrock agent. The database stack creates a
+private VPC, two private subnets, Aurora Serverless v2, RDS Proxy, security groups, and the initial schema.
 
-### 4. Run the Frontend
-
-1. Edit `frontend-vanilla/js/config.js` with your API URLs and Cognito IDs
-2. Open `frontend-vanilla/index.html` in a browser or serve with any static server
-
-> **Note:** CORS is configured for `http://localhost:8080`. Using `127.0.0.1` or a different port will cause CORS errors.
-
-### 5. Create an Account
-
-Click **Sign In** → **Create Account**. Use a valid email to receive the verification code.
-
----
-
-## Alternative: Full Deployment via AWS Amplify Console
+Run the frontend locally:
 
 ```bash
-export GITHUB_REPO=https://github.com/AJJAPUSIVA/AWS-Serverless-Shopping-WebSite-App
-export GITHUB_BRANCH=main
-export GITHUB_OAUTH_TOKEN=<your-github-personal-access-token>
-
-make amplify-deploy
+make frontend-serve
 ```
 
-Then go to the [AWS Amplify Console](https://console.aws.amazon.com/amplify/home), select **CartApp**, and click **Run Build**.
+Open `http://localhost:8080`, create an account, confirm the email address, and sign in. Cart and assistant actions are
+disabled until the user is authenticated.
 
----
-
-## API Endpoints
-
-### Shopping Cart (`/cart`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/cart` | Get cart for current user (anonymous or authenticated) |
-| POST | `/cart` | Add item to cart (body: `{productId, quantity}`) |
-| POST | `/cart/migrate` | Merge anonymous cart into authenticated user's cart |
-| POST | `/cart/checkout` | Checkout (empties cart) |
-| PUT | `/cart/{product-id}` | Update item quantity |
-| GET | `/cart/{product-id}/total` | Get aggregated total of a product across all carts |
-
-### Products (`/product`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/product` | List all products |
-| GET | `/product/{product_id}` | Get single product details |
-
-### Assistant (`/assistant`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/assistant` | Send a message to the AI shopping assistant (requires auth) |
-
----
-
-## AI Shopping Assistant
-
-Signed-in users can chat with the assistant to:
-
-- Search the product catalog ("Find fruit under $5")
-- Inspect their cart ("What's in my cart?")
-- Add/remove items ("Add two of the cheapest vegetables")
-- Preview checkout ("Preview checkout and tell me the total")
-
-The assistant uses Amazon Bedrock Agents with six purpose-built action tools. Cart-modifying actions require user confirmation.
-
----
-
-## Key Design Decisions
-
-- **Anonymous carts** persist via a UUID cookie (TTL: 1 day)
-- **Authenticated carts** have a 7-day TTL
-- **Cart migration** merges anonymous → authenticated on login (quantities summed)
-- **DynamoDB Streams** power real-time aggregation of product quantities across all carts
-- **Security**: The Bedrock Agent never sees Cognito tokens; user identity is resolved server-side
-
----
-
-## Project Structure
-
-```
-├── backend/
-│   ├── auth.yaml                    # Cognito stack
-│   ├── product-mock.yaml            # Product catalog stack
-│   ├── shoppingcart-service.yaml    # Cart service stack
-│   ├── agent-service.yaml           # Bedrock agent stack
-│   ├── shopping-cart-service/       # Cart Lambda handlers (Python)
-│   ├── product-mock-service/        # Product Lambda handlers (Python)
-│   ├── agent-service/               # Agent Lambda handlers (Python)
-│   └── layers/                      # Shared Lambda layer
-├── frontend-vanilla/                # Plain HTML/CSS/JS frontend
-│   ├── index.html                   # Single page app
-│   ├── css/style.css                # Bootstrap 5 + custom styles
-│   └── js/                          # Modular JS (auth, api, cart, products, assistant)
-├── amplify-ci/                      # Amplify Console CloudFormation template
-├── amplify.yml                      # Amplify build spec
-├── Makefile                         # Top-level build orchestration
-├── requirements-ci.txt              # Pinned CI dependencies
-└── README.md
-```
-
----
-
-## CI/CD Pipeline
-
-The GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
-
-| Job | What it does |
-|-----|-------------|
-| `backend-lint` | Compiles Python, lints CloudFormation templates |
-| `backend-tests` | Runs unit tests for agent-service and shopping-cart-service |
-| `frontend` | Validates HTML, lints JS, checks config structure |
-| `security` | Audits Python deps, scans for hardcoded secrets, checks for unwanted files |
-
----
-
-## Cleanup
+> Aurora Serverless v2, RDS Proxy, Bedrock, and other AWS services can incur charges. Delete the stacks when the demo
+> is no longer needed.
 
 ```bash
 make backend-delete
 ```
 
-If deployed via Amplify, also delete the **CartApp** stack from CloudFormation.
+The Aurora cluster uses snapshot retention during stack deletion. Remove unwanted final snapshots separately from the
+RDS console.
 
----
+## Continuous integration
+
+GitHub Actions is the primary CI system because the project is hosted on GitHub and does not require a separate
+Jenkins server. The workflow in `.github/workflows/ci.yml` starts a real MySQL 8.4 service and runs:
+
+- Agent unit tests
+- MySQL catalog, cart, inventory, checkout, and order integration tests
+- SQL-injection regression coverage
+- Python compilation
+- SAM and CloudFormation validation
+- Frontend lint and production build with Node.js 20
+- A check that the patched `sqlparse==0.6.0` is installed
+
+Open the repository's **Actions** page after pushing a branch. Both **Backend, MySQL, and security** and **Frontend**
+must pass before merging.
+
+The test commands are ordinary shell commands, so they can be moved into a Jenkins pipeline later if an organization
+already operates Jenkins. Maintaining two CI definitions is intentionally avoided for this sample.
+
+## Security choices
+
+- Aurora and RDS Proxy are private and have no public IP address.
+- Lambda-to-proxy traffic uses TLS and IAM database authentication.
+- Secrets Manager stores the credential used by RDS Proxy to reach Aurora.
+- Cart, checkout, order history, and assistant APIs require Cognito authentication.
+- Bedrock tool functions accept typed parameters and use parameterized SQL only.
+- Cart mutations and checkout require agent confirmation.
+- CI pins `sqlparse==0.6.0`, and Dependabot monitors Python and frontend dependencies.
+
+## Demo limitations
+
+- Checkout creates an order but does not charge a payment method.
+- The seed catalog is intentionally small.
+- The Vue 2 frontend is retained to keep the change focused on the data and agent architecture.
+- The demo uses one database principal for schema initialization and runtime access; a production deployment should
+  create a separate least-privilege runtime user after migrations complete.
+- Production deployments should add alarms, database performance monitoring, payment idempotency, and an order
+  cancellation/refund workflow.
 
 ## License
 
-MIT-0 License. See [LICENSE](LICENSE).
+This project uses the MIT-0 License. See [LICENSE](LICENSE).

@@ -1,6 +1,6 @@
-all: backend
+all: backend frontend-build
 
-TEMPLATES = auth product-mock shoppingcart-service agent-service
+TEMPLATES = auth database product-mock shoppingcart-service agent-service
 
 REGION := $(shell python3 -c 'import boto3; print(boto3.Session().region_name)')
 ifndef S3_BUCKET
@@ -11,6 +11,7 @@ endif
 
 backend: create-bucket
 	$(MAKE) -C backend TEMPLATE=auth S3_BUCKET=$(S3_BUCKET)
+	$(MAKE) -C backend TEMPLATE=database S3_BUCKET=$(S3_BUCKET)
 	$(MAKE) -C backend TEMPLATE=product-mock S3_BUCKET=$(S3_BUCKET)
 	$(MAKE) -C backend TEMPLATE=shoppingcart-service S3_BUCKET=$(S3_BUCKET)
 	$(MAKE) -C backend TEMPLATE=agent-service S3_BUCKET=$(S3_BUCKET)
@@ -19,6 +20,7 @@ backend-delete:
 	$(MAKE) -C backend delete TEMPLATE=agent-service
 	$(MAKE) -C backend delete TEMPLATE=shoppingcart-service
 	$(MAKE) -C backend delete TEMPLATE=product-mock
+	$(MAKE) -C backend delete TEMPLATE=database
 	$(MAKE) -C backend delete TEMPLATE=auth
 
 backend-tests:
@@ -40,7 +42,9 @@ amplify-deploy:
 		--stack-name CartApp
 
 frontend-serve:
-	@echo "Open frontend-vanilla/index.html in your browser"
-	@echo "Or serve with: python3 -m http.server 8080 -d frontend-vanilla"
+	$(MAKE) -C frontend serve
 
-.PHONY: all backend backend-delete backend-tests create-bucket amplify-deploy frontend-serve
+frontend-build:
+	$(MAKE) -C frontend build
+
+.PHONY: all backend backend-delete backend-tests create-bucket amplify-deploy frontend-serve frontend-build
