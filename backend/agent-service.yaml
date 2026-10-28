@@ -30,7 +30,6 @@ Parameters:
 
 Globals:
   Function:
-    Runtime: python3.13
     MemorySize: 512
     Timeout: 30
     Tracing: Active
@@ -76,6 +75,7 @@ Resources:
   AgentActionFunction:
     Type: AWS::Serverless::Function
     Properties:
+      Runtime: python3.13
       CodeUri: agent-service/
       Handler: action_handler.lambda_handler
       Layers:
@@ -248,22 +248,35 @@ Resources:
 
   ChatFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: agent-api/
+      DockerTag: python3.13-v1
     Properties:
-      CodeUri: agent-service/
-      Handler: chat_handler.lambda_handler
+      PackageType: Image
+      MemorySize: 1024
+      Timeout: 60
       Environment:
         Variables:
           AGENT_ID: !Ref ShoppingAgent
           AGENT_ALIAS_ID: !GetAtt ShoppingAgentAlias.AgentAliasId
           SESSION_TABLE_NAME: !Ref AssistantSessionTable
+          FOUNDATION_MODEL_ID: !Ref FoundationModelId
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref AssistantSessionTable
         - AWSXrayWriteOnlyAccess
         - Statement:
             - Effect: Allow
-              Action: bedrock:InvokeAgent
-              Resource: !GetAtt ShoppingAgentAlias.AgentAliasArn
+              Action:
+                - bedrock:InvokeAgent
+              Resource:
+                - !GetAtt ShoppingAgentAlias.AgentAliasArn
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource:
+                - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}::foundation-model/${FoundationModelId}
       Events:
         Chat:
           Type: Api

@@ -30,7 +30,29 @@
             :key="index"
             :class="['assistant-message', item.role]"
           >
-            {{ item.text }}
+            <div>{{ item.text }}</div>
+            <div v-if="item.products && item.products.length" class="assistant-products">
+              <v-chip
+                v-for="product in item.products"
+                :key="product.productId || product.name"
+                class="mr-2 mt-2"
+                color="primary"
+                outlined
+                small
+              >
+                {{ product.name }}<span v-if="product.price != null"> · ${{ product.price.toFixed(2) }}</span>
+              </v-chip>
+            </div>
+            <div v-if="item.order" class="assistant-order mt-2">
+              Order {{ item.order.orderId || "created" }}
+              <span v-if="item.order.total != null"> · ${{ item.order.total.toFixed(2) }}</span>
+            </div>
+            <div v-if="item.cart && item.cart.total != null" class="assistant-order mt-2">
+              Cart total · ${{ item.cart.total.toFixed(2) }}
+            </div>
+            <div v-if="item.citations && item.citations.length" class="assistant-citations mt-2">
+              Sources: {{ item.citations.map(citation => citation.title).join(", ") }}
+            </div>
           </div>
 
           <v-alert v-if="!currentUser" type="info" outlined>
@@ -131,11 +153,22 @@ export default {
       try {
         const response = await askAssistant(message, this.sessionId);
         this.sessionId = response.sessionId;
-        this.messages.push({ role: "assistant", text: response.message });
+        this.messages.push({
+          role: "assistant",
+          text: response.message,
+          responseType: response.responseType,
+          products: response.products || [],
+          cart: response.cart || null,
+          order: response.order || null,
+          citations: response.citations || [],
+          requiresConfirmation: Boolean(response.requiresConfirmation)
+        });
         await this.$store.dispatch("fetchCart");
       } catch (error) {
         this.errorMessage =
-          (error.response && error.response.data && error.response.data.message) ||
+          (error.response &&
+            error.response.data &&
+            (error.response.data.message || error.response.data.detail)) ||
           "The assistant is unavailable. Please try again.";
       } finally {
         this.sending = false;
@@ -186,5 +219,14 @@ export default {
   color: #5f6368;
   display: flex;
   gap: 8px;
+}
+
+.assistant-order {
+  font-weight: 600;
+}
+
+.assistant-citations {
+  color: #5f6368;
+  font-size: 0.78rem;
 }
 </style>
