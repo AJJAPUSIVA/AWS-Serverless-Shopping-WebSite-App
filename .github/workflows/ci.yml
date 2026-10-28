@@ -52,12 +52,13 @@ jobs:
           cache: pip
           cache-dependency-path: |
             requirements-ci.txt
+            backend/agent-api/requirements.txt
             backend/layers/requirements.txt
 
       - name: Install CI dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-ci.txt -r backend/layers/requirements.txt
+          pip install -r requirements-ci.txt -r backend/layers/requirements.txt -r backend/agent-api/requirements.txt
 
       - name: Verify patched sqlparse
         run: |
@@ -70,10 +71,14 @@ jobs:
       - name: Run unit and MySQL integration tests
         run: |
           python -m unittest discover -s backend/agent-service/tests -v
+          python -m unittest discover -s backend/agent-api/tests -v
           python -m unittest discover -s backend/tests -v
 
       - name: Compile Python
         run: python -m compileall -q backend
+
+      - name: Build structured assistant Lambda image
+        run: docker build --file backend/agent-api/Dockerfile backend/agent-api
 
       - name: Validate SAM templates
         run: |
@@ -121,11 +126,13 @@ jobs:
           cache: pip
           cache-dependency-path: |
             requirements-ci.txt
+            backend/agent-api/requirements.txt
             backend/layers/requirements.txt
 
       - name: Audit Python dependencies
         run: |
-          pip install -r requirements-ci.txt -r backend/layers/requirements.txt
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci.txt -r backend/layers/requirements.txt -r backend/agent-api/requirements.txt
           pip-audit --ignore-vuln PYSEC-2026-2132 --ignore-vuln PYSEC-2026-3552
 
       - name: Check for committed secrets

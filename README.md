@@ -2,7 +2,7 @@
 
 A sample online store with a Vue interface and an Amazon Bedrock shopping agent. Product, inventory, cart, customer,
 and order data are stored in Aurora Serverless v2 MySQL. AWS Lambda reaches MySQL through RDS Proxy using IAM
-authentication.
+authentication. The assistant API uses FastAPI, LangChain structured output, and LlamaIndex policy retrieval.
 
 The assistant can search products, check stock, manage a signed-in customer's cart, show order history, summarize
 popular products, and create an order after the customer confirms checkout.
@@ -16,7 +16,8 @@ flowchart TD
     Lambda --> Proxy[RDS Proxy]
     Proxy --> MySQL[Aurora Serverless v2 MySQL]
     Lambda --> Cognito[Amazon Cognito]
-    Chat[Chat Lambda] --> Agent[Amazon Bedrock Agent]
+    Chat[FastAPI and LangChain Lambda] --> Agent[Amazon Bedrock Agent]
+    Chat --> Knowledge[LlamaIndex policy retrieval]
     Agent --> Tools[Shopping tool Lambda]
     Tools --> Proxy
 ```
@@ -29,6 +30,9 @@ flowchart TD
 | Aurora Serverless v2 MySQL | Relational commerce data and transactions |
 | RDS Proxy | Pooled, TLS-protected Lambda database connections |
 | Amazon Bedrock Agents | Conversation and selection of controlled shopping tools |
+| FastAPI and Mangum | Typed authenticated `/assistant` API running on Lambda |
+| LangChain | Pydantic-validated response formatting through Bedrock Converse |
+| LlamaIndex | Keyword retrieval over trusted store policy and FAQ documents |
 | DynamoDB | Short-lived binding between a Bedrock session and a Cognito customer |
 
 ## MySQL data model
@@ -63,6 +67,32 @@ The model cannot submit SQL. Each tool calls a fixed function in `backend/layers
 is passed to MySQL as a parameter. Cognito identity is obtained from the authenticated API or the server-side session
 binding, never from model-generated input.
 
+## Structured assistant API
+
+`POST /assistant` accepts `message` and an optional `sessionId`. It keeps the original response fields for frontend
+compatibility and adds a typed envelope:
+
+```json
+{
+  "message": "I found one product.",
+  "sessionId": "31f532db-9403-4d11-9667-b4d18c2043dc",
+  "responseType": "product_search",
+  "products": [{"productId": "p-1", "name": "Apple", "price": 1.25}],
+  "cart": null,
+  "orders": [],
+  "order": null,
+  "requiresConfirmation": false,
+  "citations": []
+}
+```
+
+FastAPI validates the request and response models. LlamaIndex retrieves local, version-controlled policy documents;
+it is deliberately not used for live commerce data. The existing Bedrock Agent continues to select safe MySQL tools
+and enforce confirmation for mutations. LangChain's Bedrock Converse integration converts the final agent answer to a
+Pydantic schema. If that formatting call fails, the API returns the original agent answer in a minimal valid envelope.
+The API is deployed as a Lambda container image because the combined framework dependency tree is larger than the
+unzipped limit for a Lambda `.zip` package; `sam deploy --resolve-image-repos` manages its ECR repository.
+
 ## API
 
 Product browsing is public:
@@ -88,6 +118,7 @@ Requirements:
 
 - AWS CLI configured for your account
 - AWS SAM CLI 1.165 or newer
+- Docker (the FastAPI/LangChain/LlamaIndex Lambda is packaged as a container image)
 - Python 3.13
 - Node.js 20
 - An Amazon Bedrock model enabled in the deployment region
@@ -128,6 +159,7 @@ GitHub Actions is the primary CI system because the project is hosted on GitHub 
 Jenkins server. The workflow in `.github/workflows/ci.yml` starts a real MySQL 8.4 service and runs:
 
 - Agent unit tests
+- FastAPI schema, session, fallback, and LlamaIndex retrieval tests
 - MySQL catalog, cart, inventory, checkout, and order integration tests
 - SQL-injection regression coverage
 - Python compilation
@@ -148,6 +180,8 @@ already operates Jenkins. Maintaining two CI definitions is intentionally avoide
 - Secrets Manager stores the credential used by RDS Proxy to reach Aurora.
 - Cart, checkout, order history, and assistant APIs require Cognito authentication.
 - Bedrock tool functions accept typed parameters and use parameterized SQL only.
+- LangChain output is validated with Pydantic; server-owned session identity and citations are never model-generated.
+- LlamaIndex reads only trusted policy files and never queries customer or commerce tables.
 - Cart mutations and checkout require agent confirmation.
 - CI pins `sqlparse==0.6.0`, and Dependabot monitors Python and frontend dependencies.
 

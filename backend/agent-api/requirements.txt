@@ -1,0 +1,5 @@
+fastapi==0.162.0
+langchain==1.4.7
+langchain-aws==1.7.0
+llama-index-core==0.14.25
+mangum==0.22.0
