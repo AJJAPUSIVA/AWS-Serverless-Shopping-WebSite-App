@@ -1,7 +1,8 @@
+import re
 from functools import lru_cache
 from pathlib import Path
 
-from llama_index.core import Document, SimpleKeywordTableIndex
+from llama_index.core import Document, SummaryIndex
 from llama_index.core.llms import MockLLM
 
 from schemas import Citation
@@ -19,6 +20,11 @@ POLICY_QUERY_TERMS = {
     "secret",
     "shipping",
 }
+TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+
+
+def _terms(value: str) -> set[str]:
+    return set(TOKEN_PATTERN.findall(value.lower()))
 
 
 @lru_cache(maxsize=1)
@@ -35,18 +41,31 @@ def _retriever():
         )
     if not documents:
         raise RuntimeError("No store knowledge documents are configured")
-    # The simple index uses deterministic regex keyword extraction. Supplying the
-    # core mock prevents LlamaIndex from resolving an unrelated default OpenAI LLM.
-    index = SimpleKeywordTableIndex.from_documents(documents, llm=MockLLM())
-    return index.as_retriever(retriever_mode="simple")
+    # SummaryIndex keeps ingestion and retrieval local and deterministic. Unlike
+    # SimpleKeywordTableIndex, it does not load or download NLTK corpora at runtime.
+    index = SummaryIndex.from_documents(documents, llm=MockLLM())
+    return index.as_retriever()
 
 
 def retrieve_policy_context(query: str, limit: int = 3) -> list[Citation]:
-    query_terms = {term.strip(".,?!:;()[]{}\"").lower() for term in query.split()}
-    if not query_terms.intersection(POLICY_QUERY_TERMS):
+    query_terms = _terms(query)
+    policy_terms = query_terms.intersection(POLICY_QUERY_TERMS)
+    if not policy_terms:
         return []
+
+    results = _retriever().retrieve(query)
+
+    def rank(result):
+        document_terms = _terms(result.node.get_content())
+        return (
+            -len(policy_terms.intersection(document_terms)),
+            -len(query_terms.intersection(document_terms)),
+            result.node.metadata["source"],
+        )
+
+    results.sort(key=rank)
     citations = []
-    for result in _retriever().retrieve(query)[:limit]:
+    for result in results[:limit]:
         metadata = result.node.metadata
         excerpt = " ".join(result.node.get_content().split())[:600]
         citations.append(

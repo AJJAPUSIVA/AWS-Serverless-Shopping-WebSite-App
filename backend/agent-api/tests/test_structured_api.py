@@ -16,7 +16,7 @@ os.environ.setdefault("FOUNDATION_MODEL_ID", "amazon.nova-lite-v1:0")
 
 import app  # noqa: E402
 import service  # noqa: E402
-from knowledge import retrieve_policy_context  # noqa: E402
+from knowledge import _retriever, retrieve_policy_context  # noqa: E402
 from schemas import (  # noqa: E402
     AssistantRequest,
     ResponseType,
@@ -32,9 +32,7 @@ class StructuredApiTests(unittest.TestCase):
             sessionId="31f532db-9403-4d11-9667-b4d18c2043dc",
         )
         self.assertEqual(request.message, "find apples")
-        self.assertEqual(
-            request.session_id, "31f532db-9403-4d11-9667-b4d18c2043dc"
-        )
+        self.assertEqual(request.session_id, "31f532db-9403-4d11-9667-b4d18c2043dc")
 
     def test_structured_cart_uses_camel_case_fields(self):
         payload = StructuredAssistantPayload(
@@ -62,9 +60,17 @@ class StructuredApiTests(unittest.TestCase):
             normalize_session_id("not-a-uuid")
 
     def test_llamaindex_retrieves_policy_document(self):
+        _retriever.cache_clear()
         citations = retrieve_policy_context("How long do I have to return an item?")
         self.assertTrue(citations)
         self.assertEqual(citations[0].source, "returns-and-shipping.md")
+
+    def test_policy_retrieval_does_not_access_nltk_data(self):
+        _retriever.cache_clear()
+        with patch("nltk.data.find", side_effect=AssertionError("NLTK data accessed")):
+            citations = retrieve_policy_context("What is your privacy policy?")
+        self.assertTrue(citations)
+        self.assertEqual(citations[0].source, "privacy.md")
 
     def test_commerce_query_does_not_attach_policy_citations(self):
         self.assertEqual(retrieve_policy_context("Find apples under five dollars"), [])
