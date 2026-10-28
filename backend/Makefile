@@ -1,6 +1,10 @@
 all: build deploy
 ORIGIN ?= http://localhost:8080
 STACKNAME ?= aws-serverless-shopping-cart
+IMAGE_DEPLOY_ARGS =
+ifeq ($(TEMPLATE),agent-service)
+IMAGE_DEPLOY_ARGS = --resolve-image-repos
+endif
 
 build:
 	@echo "Building template $(TEMPLATE).yaml..."
@@ -8,7 +12,7 @@ build:
 
 deploy:  # s3 bucket still needed for layer
 	@echo "Deploying stack $(STACKNAME)-$(TEMPLATE)..."
-	@sam deploy --capabilities CAPABILITY_NAMED_IAM --stack-name $(STACKNAME)-$(TEMPLATE) --s3-bucket $(S3_BUCKET) --parameter-overrides AllowedOrigin=$(ORIGIN) --no-fail-on-empty-changeset
+	@sam deploy --capabilities CAPABILITY_NAMED_IAM --stack-name $(STACKNAME)-$(TEMPLATE) --s3-bucket $(S3_BUCKET) $(IMAGE_DEPLOY_ARGS) --parameter-overrides AllowedOrigin=$(ORIGIN) --no-fail-on-empty-changeset
 
 tests:
 	py.test -v
