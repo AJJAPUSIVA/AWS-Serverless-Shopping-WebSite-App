@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "aws-amplify": "^1.2.3",
-    "aws-amplify-vue": "^0.3.3",
+    "aws-amplify-vue": "^2.1.9",
     "core-js": "^3.3.2",
     "decimal.js": "^10.2.0",
     "dotenv": "^8.2.0",
