@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1200" viewBox="0 0 1900 1200">
+  <defs>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#eef4fb"/>
+    </linearGradient>
+    <linearGradient id="currentPanel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f3f8ff"/>
+    </linearGradient>
+    <linearGradient id="deprecatedPanel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff8f7"/>
+      <stop offset="1" stop-color="#fff1ef"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#17324d" flood-opacity="0.13"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#2563a8"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#16835b"/>
+    </marker>
+    <style>
+      .title { font: 700 34px 'DejaVu Sans', Arial, sans-serif; fill: #102a43; }
+      .subtitle { font: 400 18px 'DejaVu Sans', Arial, sans-serif; fill: #486581; }
+      .section { font: 700 18px 'DejaVu Sans', Arial, sans-serif; letter-spacing: 1.4px; }
+      .lane { font: 700 15px 'DejaVu Sans', Arial, sans-serif; letter-spacing: 1px; fill: #627d98; }
+      .nodeTitle { font: 700 19px 'DejaVu Sans', Arial, sans-serif; fill: #102a43; }
+      .nodeText { font: 400 15px 'DejaVu Sans', Arial, sans-serif; fill: #334e68; }
+      .small { font: 400 13px 'DejaVu Sans', Arial, sans-serif; fill: #486581; }
+      .deprecatedTitle { font: 700 17px 'DejaVu Sans', Arial, sans-serif; fill: #8f2f28; }
+      .deprecatedText { font: 400 14px 'DejaVu Sans', Arial, sans-serif; fill: #9f453d; }
+      .arrow { fill: none; stroke: #2563a8; stroke-width: 3; marker-end: url(#arrow); }
+      .arrowGreen { fill: none; stroke: #16835b; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .authArrow { fill: none; stroke: #7b61a8; stroke-width: 3; stroke-dasharray: 9 7; marker-end: url(#arrow); }
+      .node { stroke-width: 2; rx: 16; filter: url(#shadow); }
+    </style>
+  </defs>
+
+  <rect width="1900" height="1200" fill="url(#page)"/>
+  <text x="70" y="55" class="title">AWS Serverless MySQL Shopping Assistant</text>
+  <text x="70" y="84" class="subtitle">Current architecture, trusted data boundaries, and replaced legacy paths</text>
+
+  <rect x="50" y="110" width="1800" height="735" rx="25" fill="url(#currentPanel)" stroke="#b8cee5" stroke-width="2"/>
+  <rect x="72" y="128" width="250" height="36" rx="18" fill="#dff5ec"/>
+  <circle cx="95" cy="146" r="7" fill="#16835b"/>
+  <text x="113" y="152" class="section" fill="#116344">CURRENT ARCHITECTURE</text>
+
+  <text x="91" y="205" class="lane">CUSTOMER</text>
+  <text x="423" y="205" class="lane">EDGE &amp; AUTH</text>
+  <text x="757" y="205" class="lane">LAMBDA SERVICES</text>
+  <text x="1168" y="205" class="lane">AGENT &amp; RESPONSE</text>
+  <text x="1541" y="205" class="lane">DATA PLANE</text>
+  <line x1="385" y1="185" x2="385" y2="810" stroke="#d9e5f2" stroke-width="2"/>
+  <line x1="720" y1="185" x2="720" y2="810" stroke="#d9e5f2" stroke-width="2"/>
+  <line x1="1130" y1="185" x2="1130" y2="810" stroke="#d9e5f2" stroke-width="2"/>
+  <line x1="1510" y1="185" x2="1510" y2="810" stroke="#d9e5f2" stroke-width="2"/>
+
+  <rect x="90" y="250" width="255" height="190" class="node" fill="#e9f3ff" stroke="#4d8bc9"/>
+  <circle cx="218" cy="286" r="18" fill="#2563a8"/>
+  <circle cx="218" cy="280" r="6" fill="#ffffff"/>
+  <path d="M205 298 Q218 287 231 298" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+  <text x="218" y="329" class="nodeTitle" text-anchor="middle">Vue 2 Storefront</text>
+  <text x="218" y="357" class="nodeText" text-anchor="middle">AWS Amplify + Cognito UI</text>
+  <text x="218" y="382" class="nodeText" text-anchor="middle">Products, cart, checkout</text>
+  <text x="218" y="407" class="nodeText" text-anchor="middle">Structured assistant cards</text>
+
+  <rect x="90" y="505" width="255" height="112" class="node" fill="#f2ecff" stroke="#7b61a8"/>
+  <text x="218" y="545" class="nodeTitle" text-anchor="middle">Amazon Cognito</text>
+  <text x="218" y="573" class="nodeText" text-anchor="middle">Authentication + ID token</text>
+  <text x="218" y="596" class="small" text-anchor="middle">Customer identity is server-owned</text>
+
+  <rect x="430" y="292" width="250" height="120" class="node" fill="#fff5dc" stroke="#d59a19"/>
+  <text x="555" y="334" class="nodeTitle" text-anchor="middle">Amazon API Gateway</text>
+  <text x="555" y="364" class="nodeText" text-anchor="middle">Product, cart, checkout</text>
+  <text x="555" y="389" class="nodeText" text-anchor="middle">Authenticated /assistant</text>
+
+  <rect x="760" y="230" width="330" height="120" class="node" fill="#edf8ff" stroke="#3d84b8"/>
+  <text x="925" y="271" class="nodeTitle" text-anchor="middle">Product Lambda</text>
+  <text x="925" y="300" class="nodeText" text-anchor="middle">MySQL catalog reads</text>
+  <text x="925" y="325" class="small" text-anchor="middle">Public product API</text>
+
+  <rect x="760" y="390" width="330" height="135" class="node" fill="#e9f9f3" stroke="#269b72"/>
+  <text x="925" y="432" class="nodeTitle" text-anchor="middle">Cart + Checkout Lambda</text>
+  <text x="925" y="461" class="nodeText" text-anchor="middle">Transactional cart and orders</text>
+  <text x="925" y="486" class="small" text-anchor="middle">Row locks · rollback · inventory update</text>
+
+  <rect x="760" y="575" width="330" height="155" class="node" fill="#eaf0ff" stroke="#536fca"/>
+  <text x="925" y="616" class="nodeTitle" text-anchor="middle">Assistant Lambda</text>
+  <text x="925" y="646" class="nodeText" text-anchor="middle">FastAPI + Mangum</text>
+  <text x="925" y="671" class="nodeText" text-anchor="middle">Authenticated typed endpoint</text>
+  <text x="925" y="696" class="small" text-anchor="middle">Container image deployment</text>
+
+  <rect x="1170" y="230" width="300" height="120" class="node" fill="#f1eaff" stroke="#7d55b3"/>
+  <text x="1320" y="272" class="nodeTitle" text-anchor="middle">Amazon Bedrock Agent</text>
+  <text x="1320" y="301" class="nodeText" text-anchor="middle">Selects fixed shopping tools</text>
+  <text x="1320" y="326" class="small" text-anchor="middle">Confirms mutations before writes</text>
+
+  <rect x="1170" y="390" width="300" height="120" class="node" fill="#fff1e4" stroke="#d17a2d"/>
+  <text x="1320" y="432" class="nodeTitle" text-anchor="middle">LangChain + Pydantic</text>
+  <text x="1320" y="461" class="nodeText" text-anchor="middle">Validated structured output</text>
+  <text x="1320" y="486" class="small" text-anchor="middle">Safe fallback to agent response</text>
+
+  <rect x="1170" y="550" width="300" height="135" class="node" fill="#e7f8f7" stroke="#2b8f8b"/>
+  <text x="1320" y="592" class="nodeTitle" text-anchor="middle">LlamaIndex</text>
+  <text x="1320" y="621" class="nodeText" text-anchor="middle">Offline policy retrieval</text>
+  <text x="1320" y="646" class="small" text-anchor="middle">Trusted Markdown only · no live SQL</text>
+
+  <rect x="1540" y="220" width="270" height="135" class="node" fill="#e9f9f3" stroke="#16835b"/>
+  <text x="1675" y="261" class="nodeTitle" text-anchor="middle">Safe MySQL Repository</text>
+  <text x="1675" y="290" class="nodeText" text-anchor="middle">Typed functions</text>
+  <text x="1675" y="315" class="small" text-anchor="middle">Parameterized SQL · no model SQL</text>
+  <text x="1675" y="337" class="small" text-anchor="middle">IAM database authentication</text>
+
+  <rect x="1540" y="405" width="270" height="95" class="node" fill="#fff5dc" stroke="#d59a19"/>
+  <text x="1675" y="445" class="nodeTitle" text-anchor="middle">RDS Proxy</text>
+  <text x="1675" y="473" class="nodeText" text-anchor="middle">Private pooled TLS connections</text>
+
+  <rect x="1540" y="550" width="270" height="150" class="node" fill="#e8f3ff" stroke="#2563a8"/>
+  <text x="1675" y="590" class="nodeTitle" text-anchor="middle">Aurora Serverless v2</text>
+  <text x="1675" y="619" class="nodeText" text-anchor="middle">MySQL system of record</text>
+  <text x="1675" y="647" class="small" text-anchor="middle">Products · inventory · customers</text>
+  <text x="1675" y="671" class="small" text-anchor="middle">Carts · orders · order items</text>
+
+  <rect x="1170" y="735" width="640" height="72" rx="14" fill="#f5f0ff" stroke="#7b61a8" stroke-width="2"/>
+  <text x="1490" y="765" class="nodeTitle" text-anchor="middle">DynamoDB — retained only for assistant session binding</text>
+  <text x="1490" y="790" class="small" text-anchor="middle">Short-lived sessionId → Cognito customer mapping; not commerce persistence</text>
+
+  <path d="M345 345 H430" class="arrow"/>
+  <path d="M345 555 C395 555 395 400 430 382" class="authArrow"/>
+  <text x="377" y="521" class="small" fill="#7b61a8">ID token</text>
+  <path d="M680 325 C720 325 720 290 760 290" class="arrow"/>
+  <path d="M680 352 H720 V458 H760" class="arrow"/>
+  <path d="M680 382 H715 V652 H760" class="arrow"/>
+  <path d="M1090 652 H1170" class="arrow"/>
+  <path d="M1090 620 C1130 620 1130 290 1170 290" class="arrow"/>
+  <path d="M1090 682 C1135 682 1135 618 1170 618" class="arrow"/>
+  <path d="M1470 290 H1540" class="arrowGreen"/>
+  <path d="M1090 290 C1310 290 1360 265 1540 265" class="arrowGreen"/>
+  <path d="M1090 458 C1315 458 1360 315 1540 315" class="arrowGreen"/>
+  <path d="M1675 355 V405" class="arrowGreen"/>
+  <path d="M1675 500 V550" class="arrowGreen"/>
+  <path d="M1090 705 C1130 705 1130 770 1170 770" class="authArrow"/>
+
+  <rect x="50" y="875" width="1800" height="270" rx="25" fill="url(#deprecatedPanel)" stroke="#e5aaa4" stroke-width="2"/>
+  <rect x="72" y="893" width="285" height="36" rx="18" fill="#ffe0dc"/>
+  <circle cx="95" cy="911" r="7" fill="#bd3c32"/>
+  <text x="113" y="917" class="section" fill="#8f2f28">DEPRECATED / REMOVED</text>
+  <text x="392" y="918" class="small">Kept here for migration context; these paths should not receive new features.</text>
+
+  <rect x="85" y="960" width="390" height="135" rx="16" fill="#fff" stroke="#d66b62" stroke-width="2" stroke-dasharray="9 6"/>
+  <text x="280" y="996" class="deprecatedTitle" text-anchor="middle">Static product_list.json catalog</text>
+  <text x="280" y="1026" class="deprecatedText" text-anchor="middle">Replaced by Aurora products + inventory</text>
+  <text x="280" y="1052" class="deprecatedText" text-anchor="middle">through the safe repository layer</text>
+  <line x1="115" y1="985" x2="445" y2="1070" stroke="#c53c32" stroke-width="5" opacity="0.75"/>
+
+  <rect x="525" y="960" width="390" height="135" rx="16" fill="#fff" stroke="#d66b62" stroke-width="2" stroke-dasharray="9 6"/>
+  <text x="720" y="996" class="deprecatedTitle" text-anchor="middle">DynamoDB carts + streams</text>
+  <text x="720" y="1026" class="deprecatedText" text-anchor="middle">Replaced by transactional MySQL tables</text>
+  <text x="720" y="1052" class="deprecatedText" text-anchor="middle">and atomic checkout transactions</text>
+  <line x1="555" y1="985" x2="885" y2="1070" stroke="#c53c32" stroke-width="5" opacity="0.75"/>
+
+  <rect x="965" y="960" width="390" height="135" rx="16" fill="#fff" stroke="#d66b62" stroke-width="2" stroke-dasharray="9 6"/>
+  <text x="1160" y="996" class="deprecatedTitle" text-anchor="middle">Raw chat_handler Lambda</text>
+  <text x="1160" y="1026" class="deprecatedText" text-anchor="middle">Replaced by FastAPI + LangChain</text>
+  <text x="1160" y="1052" class="deprecatedText" text-anchor="middle">with typed Pydantic responses</text>
+  <line x1="995" y1="985" x2="1325" y2="1070" stroke="#c53c32" stroke-width="5" opacity="0.75"/>
+
+  <rect x="1405" y="960" width="390" height="135" rx="16" fill="#fff" stroke="#d66b62" stroke-width="2" stroke-dasharray="9 6"/>
+  <text x="1600" y="996" class="deprecatedTitle" text-anchor="middle">Vanilla frontend integration</text>
+  <text x="1600" y="1026" class="deprecatedText" text-anchor="middle">Replaced by Vue + Amplify</text>
+  <text x="1600" y="1052" class="deprecatedText" text-anchor="middle">and structured assistant rendering</text>
+  <line x1="1435" y1="985" x2="1765" y2="1070" stroke="#c53c32" stroke-width="5" opacity="0.75"/>
+
+  <text x="70" y="1177" class="small">Solid arrows: active request/data flow · Dashed purple: authentication/session identity · Red strike-through: removed path</text>
+</svg>
